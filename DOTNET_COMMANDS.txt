@@ -1,0 +1,21 @@
+========================================================================
+                      .NET BUILD & PUBLISH COMMANDS
+========================================================================
+
+1. BUILD FOR DEBUG:
+-------------------
+dotnet build
+
+
+2. BUILD FOR RELEASE:
+---------------------
+dotnet build -c Release
+
+
+3. BUILD FOR PUBLISH (STANDALONE SINGLE-FILE EXE):
+---------------------------------------------------
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:EnableCompressionInSingleFile=true -o ./publish
+
+(The standalone executable will be generated at: ./publish/pdfMerge.exe)
+
+========================================================================
