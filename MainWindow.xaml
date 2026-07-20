@@ -9,7 +9,8 @@
         MinHeight="600" MinWidth="950"
         WindowStartupLocation="CenterScreen"
         Background="#0F172A" Foreground="#F8FAFC"
-        AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver">
+        AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver"
+        Icon="pdfMerge.ico">
 
     <Window.Resources>
         <!-- Modern ScrollBar Style -->
