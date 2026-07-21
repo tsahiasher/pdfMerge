@@ -1,0 +1,21 @@
+# Build outputs & Published executables
+[Bb]in/
+[Oo]bj/
+[Pp]ublish/
+publish/
+bin/
+obj/
+
+# Visual Studio / IDE temporary files
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# System & OS generated files
+[Th]umbs.db
+Desktop.ini
+*.tmp
+*.log

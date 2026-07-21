@@ -5,12 +5,12 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:pdfMerge"
         mc:Ignorable="d"
-        Title="PDF Merge &amp; Page Tools" Height="780" Width="1240"
+        Title="PDF Merge &amp; Page Manager" Height="780" Width="1240"
         MinHeight="600" MinWidth="950"
         WindowStartupLocation="CenterScreen"
+        Icon="pdfMerge.ico"
         Background="#0F172A" Foreground="#F8FAFC"
-        AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver"
-        Icon="pdfMerge.ico">
+        AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver">
 
     <Window.Resources>
         <!-- Modern ScrollBar Style -->
@@ -165,13 +165,12 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- App Title & Icon -->
+                <!-- Transparent App Title & Icon -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Image Source="pdfMerge.ico" Width="36" Height="36" Margin="0,0,12,0" VerticalAlignment="Center"/>
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="PDF Merger &amp; Page Manager" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC"/>
-                        <TextBlock Text="Drag &amp; drop to reorder pages, marquee select, rotate losslessly, and merge" FontSize="12" Foreground="#94A3B8"/>
-                    </StackPanel>
+                    <Border Width="32" Height="32" Background="Transparent" Margin="0,0,10,0">
+                        <Image Source="pdfMerge.ico" Width="28" Height="28" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="PDF Merger &amp; Page Manager" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC" VerticalAlignment="Center"/>
                 </StackPanel>
 
                 <!-- Top Action Buttons -->
@@ -179,21 +178,42 @@
                     <Button Click="BtnOpenFiles_Click" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="📂 " FontSize="14"/>
-                            <TextBlock Text="Add PDF Files"/>
+                            <TextBlock Text="Add Files"/>
                         </StackPanel>
                     </Button>
 
-                    <Button Click="BtnClearAll_Click" Style="{StaticResource IconButtonLessStyle}" Margin="0,0,10,0">
+                    <Button x:Name="BtnRevert" Click="BtnRevert_Click" Style="{StaticResource IconButtonLessStyle}" Margin="0,0,10,0" ToolTip="Undo all changes and reload original PDFs">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🔄 " FontSize="13"/>
+                            <TextBlock Text="Revert All"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button Click="BtnClearAll_Click" Style="{StaticResource DangerButtonStyle}" Margin="0,0,10,0" ToolTip="Clear all loaded files and pages">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="🗑 " FontSize="13"/>
                             <TextBlock Text="Clear All"/>
                         </StackPanel>
                     </Button>
 
+                    <Button x:Name="BtnSaveSelected" Click="BtnSaveSelected_Click" Style="{StaticResource IconButtonLessStyle}" Margin="0,0,10,0" ToolTip="Save only selected pages to a new PDF">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="💾 " FontSize="13"/>
+                            <TextBlock Text="Save Selected"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="BtnExportSelectedImage" Click="BtnExportSelectedImage_Click" Style="{StaticResource IconButtonLessStyle}" Margin="0,0,10,0" ToolTip="Export selected pages as high-resolution PNG or JPG images">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🖼 " FontSize="13"/>
+                            <TextBlock Text="Export Images"/>
+                        </StackPanel>
+                    </Button>
+
                     <Button x:Name="BtnMergeSave" Click="BtnMergeSave_Click" Style="{StaticResource SuccessButtonStyle}">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="⚡ " FontSize="14"/>
-                            <TextBlock Text="Merge &amp; Save PDF"/>
+                            <TextBlock Text="💾 " FontSize="14"/>
+                            <TextBlock Text="Merge &amp; Save All"/>
                         </StackPanel>
                     </Button>
                 </StackPanel>
@@ -203,51 +223,30 @@
         <!-- MAIN BODY CONTAINER -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="320"/>
+                <ColumnDefinition Width="300"/>
                 <!-- Left File Manager Panel -->
                 <ColumnDefinition Width="*"/>
                 <!-- Right Page Grid Canvas -->
             </Grid.ColumnDefinitions>
 
-            <!-- LEFT PANEL: FILE LIST & DRAG-DROP -->
+            <!-- LEFT PANEL: FILE LIST -->
             <Border Grid.Column="0" Background="#182232" BorderBrush="#334155" BorderThickness="0,0,1,0" Padding="16">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <!-- Drag Drop Target -->
                         <RowDefinition Height="Auto"/>
                         <!-- List Header -->
                         <RowDefinition Height="*"/>
                         <!-- File List -->
                     </Grid.RowDefinitions>
 
-                    <!-- DRAG & DROP ZONE -->
-                    <Border Grid.Row="0" Height="110" Background="#0F172A" BorderBrush="#38BDF8" BorderThickness="2" CornerRadius="10" Margin="0,0,0,16" Padding="10">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="BorderThickness" Value="2"/>
-                                <Style.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Background" Value="#1E293B"/>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock Text="📥" FontSize="26" HorizontalAlignment="Center" Margin="0,0,0,6"/>
-                            <TextBlock Text="Drag &amp; Drop PDF Files Here" FontWeight="SemiBold" Foreground="#38BDF8" HorizontalAlignment="Center" FontSize="13"/>
-                            <TextBlock Text="or click 'Add PDF Files' button" Foreground="#64748B" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0"/>
-                        </StackPanel>
-                    </Border>
-
                     <!-- FILE LIST HEADER -->
-                    <Grid Grid.Row="1" Margin="0,0,0,8">
+                    <Grid Grid.Row="0" Margin="0,0,0,12">
                         <TextBlock Text="PDF Source Files" FontWeight="Bold" FontSize="14" Foreground="#E2E8F0" VerticalAlignment="Center"/>
                         <TextBlock x:Name="TxtFileCount" Text="0 files" FontSize="12" Foreground="#94A3B8" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                     </Grid>
 
                     <!-- FILE LISTBOX -->
-                    <ListBox x:Name="LstFiles" Grid.Row="2" Background="Transparent" BorderThickness="0"
+                    <ListBox x:Name="LstFiles" Grid.Row="1" Background="Transparent" BorderThickness="0"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              SelectionMode="Single">
                         <ListBox.ItemContainerStyle>
@@ -308,16 +307,16 @@
                 </Grid>
             </Border>
 
-            <!-- RIGHT PANEL: PAGE THUMBNAIL GALLERY & MULTI-SELECT TOOLBAR -->
+            <!-- RIGHT PANEL: PAGE GALLERY & CONTROLS -->
             <Grid Grid.Column="1" Background="#0F172A">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <!-- Toolbar & Batch Actions -->
+                    <!-- Toolbar & Controls -->
                     <RowDefinition Height="*"/>
-                    <!-- Page Thumbnails Grid with Visual Marker -->
+                    <!-- Page Thumbnails Grid -->
                 </Grid.RowDefinitions>
 
-                <!-- GALLERY SUBHEADER & BATCH ACTIONS TOOLBAR -->
+                <!-- GALLERY SUBHEADER & TOOLBAR -->
                 <Border Grid.Row="0" Background="#1E293B" BorderBrush="#334155" BorderThickness="0,0,0,1" Padding="16,10">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -326,35 +325,64 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Page Summary & Selection Status -->
+                        <!-- Page Badges -->
                         <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="Document Pages" FontWeight="Bold" FontSize="14" Foreground="#F1F5F9" Margin="0,0,10,0"/>
                             <Border Background="#334155" CornerRadius="10" Padding="8,2" Margin="0,0,10,0">
                                 <TextBlock x:Name="TxtPageCountBadge" Text="0 Pages" FontSize="12" Foreground="#38BDF8" FontWeight="SemiBold"/>
                             </Border>
                             <TextBlock x:Name="TxtSelectedCountBadge" Text="(0 selected)" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center"/>
                         </StackPanel>
 
-                        <!-- Selection & Batch Action Buttons -->
+                        <!-- ZOOM SLIDER & BATCH ACTION BUTTONS -->
                         <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <!-- Zoom Size Slider with Magnifying Glass Vector Lens (- / + INSIDE) -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,16,0" VerticalAlignment="Center">
+                                <!-- Zoom Out: Magnifying Glass with MINUS (-) INSIDE Lens -->
+                                <Grid Width="18" Height="18" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Zoom Out">
+                                    <Line X1="3" Y1="15" X2="8" Y2="10" Stroke="#94A3B8" StrokeThickness="2.2" StrokeStartLineCap="Round"/>
+                                    <Ellipse Width="12" Height="12" Stroke="#38BDF8" StrokeThickness="1.6" Fill="#182232" HorizontalAlignment="Right" VerticalAlignment="Top"/>
+                                    <Rectangle Width="6" Height="1.8" Fill="#F8FAFC" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5.1,3,0"/>
+                                </Grid>
+
+                                <Slider x:Name="SldZoom" Minimum="1" Maximum="4" Value="2" TickFrequency="1" IsSnapToTickEnabled="True" Width="90" VerticalAlignment="Center" ValueChanged="SldZoom_ValueChanged" ToolTip="Thumbnail Zoom Level (1-4)"/>
+
+                                <!-- Zoom In: Magnifying Glass with PLUS (+) INSIDE Lens -->
+                                <Grid Width="18" Height="18" Margin="6,0,0,0" VerticalAlignment="Center" ToolTip="Zoom In">
+                                    <Line X1="3" Y1="15" X2="8" Y2="10" Stroke="#94A3B8" StrokeThickness="2.2" StrokeStartLineCap="Round"/>
+                                    <Ellipse Width="12" Height="12" Stroke="#38BDF8" StrokeThickness="1.6" Fill="#182232" HorizontalAlignment="Right" VerticalAlignment="Top"/>
+                                    <Rectangle Width="6" Height="1.8" Fill="#F8FAFC" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5.1,3,0"/>
+                                    <Rectangle Width="1.8" Height="6" Fill="#F8FAFC" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,3,5.1,0"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Overlapping Double Check Select All & X Deselect Buttons -->
                             <Button Click="BtnSelectAllPages_Click" Style="{StaticResource IconButtonLessStyle}" Margin="0,0,6,0" ToolTip="Select All Pages (Ctrl+A)">
-                                <TextBlock Text="Select All" FontSize="12"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <Grid Margin="0,0,6,0" VerticalAlignment="Center">
+                                        <TextBlock Text="✓" FontSize="11" FontWeight="Bold" Foreground="#94A3B8" Margin="0,2,0,0"/>
+                                        <TextBlock Text="✓" FontSize="12" FontWeight="Bold" Foreground="#38BDF8" Margin="4,-2,0,0"/>
+                                    </Grid>
+                                    <TextBlock Text="Select All" FontSize="12"/>
+                                </StackPanel>
                             </Button>
                             <Button Click="BtnDeselectAllPages_Click" Style="{StaticResource IconButtonLessStyle}" Margin="0,0,12,0" ToolTip="Deselect All Pages">
-                                <TextBlock Text="Deselect" FontSize="12"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="✕ " FontSize="12" FontWeight="Bold"/>
+                                    <TextBlock Text="Deselect" FontSize="12"/>
+                                </StackPanel>
                             </Button>
 
                             <Button x:Name="BtnRotateSelectedCW" Click="BtnRotateSelectedCW_Click" Style="{StaticResource IconButtonLessStyle}" Margin="0,0,6,0" ToolTip="Rotate Selected Pages Clockwise (Lossless)">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="↻ " FontSize="12"/>
-                                    <TextBlock Text="Rotate Selected CW"/>
+                                    <TextBlock Text="Rotate CW"/>
                                 </StackPanel>
                             </Button>
 
                             <Button x:Name="BtnRotateSelectedCCW" Click="BtnRotateSelectedCCW_Click" Style="{StaticResource IconButtonLessStyle}" Margin="0,0,12,0" ToolTip="Rotate Selected Pages Counter-Clockwise (Lossless)">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="↺ " FontSize="12"/>
-                                    <TextBlock Text="Rotate Selected CCW"/>
+                                    <TextBlock Text="Rotate CCW"/>
                                 </StackPanel>
                             </Button>
 
@@ -372,16 +400,16 @@
                 <StackPanel x:Name="PnlEmptyState" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
                     <TextBlock Text="📑" FontSize="56" HorizontalAlignment="Center" Margin="0,0,0,12"/>
                     <TextBlock Text="No PDF Pages Loaded" FontSize="18" FontWeight="Bold" Foreground="#94A3B8" HorizontalAlignment="Center"/>
-                    <TextBlock Text="Drag &amp; drop PDF files onto the left panel or click 'Add PDF Files' to start." FontSize="13" Foreground="#64748B" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                    <TextBlock Text="Click 'Add Files' to start." FontSize="13" Foreground="#64748B" HorizontalAlignment="Center" Margin="0,4,0,0"/>
                 </StackPanel>
 
-                <!-- CONTAINER FOR LISTBOX & OVERLAY VISUAL INSERTION MARKER & MARQUEE SELECTION -->
+                <!-- CONTAINER FOR LISTBOX & OVERLAY CANVAS -->
                 <Grid Grid.Row="1" x:Name="GridGalleryContainer"
                       PreviewMouseLeftButtonDown="LstPages_PreviewMouseLeftButtonDown"
                       PreviewMouseMove="LstPages_PreviewMouseMove"
                       PreviewMouseLeftButtonUp="LstPages_PreviewMouseLeftButtonUp">
                     
-                    <!-- PAGE THUMBNAILS EXTENDED SELECTION LISTBOX WITH SMOOTH SCROLLING & DRAG-DROP -->
+                    <!-- PAGE THUMBNAILS EXTENDED SELECTION LISTBOX WITH LIVE DRAG REFLOW -->
                     <ListBox x:Name="LstPages" Background="Transparent" BorderThickness="0"
                              SelectionMode="Extended" Padding="16"
                              SelectionChanged="LstPages_SelectionChanged"
@@ -420,7 +448,7 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <!-- THUMBNAIL CARD BORDER -->
-                                <Border x:Name="cardBorder" Width="205" Height="305" Background="#1E293B" BorderBrush="#334155" BorderThickness="2" CornerRadius="10" Cursor="Hand">
+                                <Border x:Name="cardBorder" Width="{Binding CardWidth}" Height="{Binding CardHeight}" Background="#1E293B" BorderBrush="#334155" BorderThickness="2" CornerRadius="10" Cursor="Hand">
                                     <Grid Margin="8">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -433,18 +461,24 @@
 
                                         <!-- CARD HEADER -->
                                         <Grid Grid.Row="0" Margin="0,0,0,6">
-                                            <StackPanel Orientation="Horizontal">
-                                                <!-- Selection indicator / Page number badge -->
-                                                <Border x:Name="pageBadge" Background="#0EA5E9" CornerRadius="4" Padding="6,2" Margin="0,0,6,0">
-                                                    <TextBlock Text="{Binding DisplayPageNumber, StringFormat='Page {0}'}" FontSize="11" FontWeight="Bold" Foreground="White"/>
-                                                </Border>
-                                                <Border Background="#334155" CornerRadius="4" Padding="4,2">
-                                                    <TextBlock Text="{Binding RotationText}" FontSize="11" Foreground="#38BDF8" FontWeight="SemiBold"/>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- TOP-LEFT SELECTION CHECKBOX -->
+                                            <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,6,0" Cursor="Hand" ToolTip="Select Page"/>
+
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                <!-- Original page number badge -->
+                                                <Border x:Name="pageBadge" Background="#0EA5E9" CornerRadius="4" Padding="6,2">
+                                                    <TextBlock Text="{Binding OriginalPageNumber, StringFormat='Orig. {0}'}" FontSize="11" FontWeight="Bold" Foreground="White"/>
                                                 </Border>
                                             </StackPanel>
 
                                             <!-- Source file badge -->
-                                            <TextBlock Text="{Binding SourceFileName}" FontSize="10" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" MaxWidth="75" HorizontalAlignment="Right" VerticalAlignment="Center" ToolTip="{Binding SourceFilePath}"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding SourceFileName}" FontSize="10" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" MaxWidth="75" HorizontalAlignment="Right" VerticalAlignment="Center" ToolTip="{Binding SourceFilePath}"/>
                                         </Grid>
 
                                         <!-- THUMBNAIL CONTAINER -->
@@ -465,7 +499,7 @@
                                                 </TextBlock>
 
                                                 <!-- Image Preview with RenderTransform Rotation -->
-                                                <Image Source="{Binding Thumbnail}" Stretch="Uniform" RenderTransformOrigin="0.5,0.5" MaxHeight="205" MaxWidth="175">
+                                                <Image Source="{Binding Thumbnail}" Stretch="Uniform" RenderTransformOrigin="0.5,0.5" MaxHeight="{Binding ImageMaxHeight}" MaxWidth="{Binding ImageMaxWidth}">
                                                     <Image.RenderTransform>
                                                         <RotateTransform Angle="{Binding Rotation}"/>
                                                     </Image.RenderTransform>
@@ -473,50 +507,84 @@
                                             </Grid>
                                         </Border>
 
-                                        <!-- CARD BOTTOM TOOLBAR (Rotate CCW, Rotate CW, Delete) -->
+                                        <!-- CARD BOTTOM TOOLBAR -->
                                         <Grid Grid.Row="2">
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
 
-                                            <!-- Rotate Buttons -->
-                                            <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left">
-                                                <Button Click="BtnRotateCCW_Click" Style="{StaticResource IconButtonLessStyle}" Padding="8,4" Margin="0,0,4,0" ToolTip="Rotate -90° (CCW)">
+                                            <!-- Simple Current Output Page Number -->
+                                            <TextBlock Grid.Column="0" Text="{Binding DisplayPageNumber, StringFormat='P. {0}'}" FontSize="12" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center" Margin="2,0,0,0"/>
+
+                                            <!-- Action Buttons: Rotate CCW, Rotate CW, Edit Sign, Delete -->
+                                            <StackPanel Grid.Column="2" x:Name="PnlBottomActions" Orientation="Horizontal" HorizontalAlignment="Right" Visibility="Collapsed">
+                                                <Button Click="BtnRotateCCW_Click" Style="{StaticResource IconButtonLessStyle}" Padding="6,3" Margin="0,0,3,0" ToolTip="Rotate -90° (CCW)">
                                                     <TextBlock Text="↺" FontSize="12"/>
                                                 </Button>
-                                                <Button Click="BtnRotateCW_Click" Style="{StaticResource IconButtonLessStyle}" Padding="8,4" ToolTip="Rotate +90° (CW)">
+                                                <Button Click="BtnRotateCW_Click" Style="{StaticResource IconButtonLessStyle}" Padding="6,3" Margin="0,0,3,0" ToolTip="Rotate +90° (CW)">
                                                     <TextBlock Text="↻" FontSize="12"/>
                                                 </Button>
+                                                <Button Click="BtnSignPage_Click" Style="{StaticResource IconButtonLessStyle}" Padding="6,3" Margin="0,0,3,0" ToolTip="Sign / Edit Page (Draw / Load Signature)">
+                                                    <TextBlock Text="✏️" FontSize="11"/>
+                                                </Button>
+                                                <Button Click="BtnDeletePage_Click" Style="{StaticResource DangerButtonStyle}" Padding="6,3" ToolTip="Delete Page">
+                                                    <TextBlock Text="🗑" FontSize="11"/>
+                                                </Button>
                                             </StackPanel>
-
-                                            <!-- Delete Page Button -->
-                                            <Button Grid.Column="1" Click="BtnDeletePage_Click" Style="{StaticResource DangerButtonStyle}" Padding="8,4" ToolTip="Delete Page">
-                                                <TextBlock Text="🗑" FontSize="11"/>
-                                            </Button>
                                         </Grid>
                                     </Grid>
                                 </Border>
 
                                 <DataTemplate.Triggers>
-                                    <!-- Visual trigger for selected card -->
-                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True">
+                                    <!-- Visual blue/cyan border trigger bound directly to IsSelected model -->
+                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                         <Setter TargetName="cardBorder" Property="BorderBrush" Value="#0EA5E9"/>
                                         <Setter TargetName="cardBorder" Property="Background" Value="#0F2942"/>
                                         <Setter TargetName="cardBorder" Property="BorderThickness" Value="2.5"/>
                                         <Setter TargetName="pageBadge" Property="Background" Value="#10B981"/>
+                                    </DataTrigger>
+                                    <!-- Hide card container from grid during dragging -->
+                                    <DataTrigger Binding="{Binding IsBeingDragged}" Value="True">
+                                        <Setter TargetName="cardBorder" Property="Visibility" Value="Hidden"/>
+                                    </DataTrigger>
+                                    <!-- Show Action Controls on Mouse Hover -->
+                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsMouseOver}" Value="True">
+                                        <Setter TargetName="PnlBottomActions" Property="Visibility" Value="Visible"/>
                                     </DataTrigger>
                                 </DataTemplate.Triggers>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
 
-                    <!-- OVERLAY CANVAS FOR VISUAL DROP INSERTION LINE MARKER -->
-                    <Canvas x:Name="CnvInsertionMarker" IsHitTestVisible="False">
-                        <Border x:Name="InsertionMarker" Width="5" Height="305" Background="#0EA5E9" CornerRadius="2.5" Visibility="Collapsed">
-                            <Border.Effect>
-                                <DropShadowEffect Color="#38BDF8" BlurRadius="10" ShadowDepth="0"/>
-                            </Border.Effect>
+                    <!-- FLOATING LOW-OPACITY DRAG GHOST PREVIEW CANVAS SHOWING ACTUAL PAGE IMAGE -->
+                    <Canvas x:Name="CnvDragGhost" IsHitTestVisible="False">
+                        <Border x:Name="GhostCard" Width="190" Height="285" Background="#0F2942" BorderBrush="#0EA5E9" BorderThickness="2.5" CornerRadius="10" Opacity="0.65" Visibility="Collapsed">
+                            <Grid Margin="8">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Header Badge -->
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,0,0,6">
+                                    <Border Background="#10B981" CornerRadius="4" Padding="6,2">
+                                        <TextBlock x:Name="TxtGhostBadge" Text="Moving Page" FontSize="11" FontWeight="Bold" Foreground="White"/>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- Actual Image Preview -->
+                                <Border Grid.Row="1" Background="#0F172A" CornerRadius="6" ClipToBounds="True">
+                                    <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Image x:Name="GhostImage" Stretch="Uniform" RenderTransformOrigin="0.5,0.5" MaxHeight="210" MaxWidth="165">
+                                            <Image.RenderTransform>
+                                                <RotateTransform x:Name="GhostRotateTransform" Angle="0"/>
+                                            </Image.RenderTransform>
+                                        </Image>
+                                    </Grid>
+                                </Border>
+                            </Grid>
                         </Border>
                     </Canvas>
 

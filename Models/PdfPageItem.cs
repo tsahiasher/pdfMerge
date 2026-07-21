@@ -5,6 +5,27 @@ using pdfMerge.Helpers;
 
 namespace pdfMerge.Models
 {
+    public class AppliedSignature
+    {
+        public BitmapSource SignatureImage { get; set; } = null!;
+        public double RelX { get; set; }
+        public double RelY { get; set; }
+        public double RelWidth { get; set; }
+        public double RelHeight { get; set; }
+
+        public AppliedSignature Clone()
+        {
+            return new AppliedSignature
+            {
+                SignatureImage = this.SignatureImage,
+                RelX = this.RelX,
+                RelY = this.RelY,
+                RelWidth = this.RelWidth,
+                RelHeight = this.RelHeight
+            };
+        }
+    }
+
     public class PdfPageItem : ObservableObject
     {
         private Guid _id = Guid.NewGuid();
@@ -16,6 +37,14 @@ namespace pdfMerge.Models
         private BitmapSource? _thumbnail;
         private bool _isSelected;
         private bool _isLoading = true;
+        private bool _isBeingDragged;
+        private AppliedSignature? _pageSignature;
+
+        // Dynamic Card Zoom Dimensions
+        private double _cardWidth = 205;
+        private double _cardHeight = 305;
+        private double _imageMaxHeight = 205;
+        private double _imageMaxWidth = 175;
 
         public Guid Id => _id;
 
@@ -43,6 +72,8 @@ namespace pdfMerge.Models
             set => SetProperty(ref _originalPageIndex, value);
         }
 
+        public int OriginalPageNumber => OriginalPageIndex + 1;
+
         public int DisplayPageNumber
         {
             get => _displayPageNumber;
@@ -54,7 +85,6 @@ namespace pdfMerge.Models
             get => _rotation;
             set
             {
-                // Normalize rotation to 0, 90, 180, 270
                 int normalized = ((value % 360) + 360) % 360;
                 if (SetProperty(ref _rotation, normalized))
                 {
@@ -83,6 +113,42 @@ namespace pdfMerge.Models
             set => SetProperty(ref _isLoading, value);
         }
 
+        public bool IsBeingDragged
+        {
+            get => _isBeingDragged;
+            set => SetProperty(ref _isBeingDragged, value);
+        }
+
+        public AppliedSignature? PageSignature
+        {
+            get => _pageSignature;
+            set => SetProperty(ref _pageSignature, value);
+        }
+
+        public double CardWidth
+        {
+            get => _cardWidth;
+            set => SetProperty(ref _cardWidth, value);
+        }
+
+        public double CardHeight
+        {
+            get => _cardHeight;
+            set => SetProperty(ref _cardHeight, value);
+        }
+
+        public double ImageMaxHeight
+        {
+            get => _imageMaxHeight;
+            set => SetProperty(ref _imageMaxHeight, value);
+        }
+
+        public double ImageMaxWidth
+        {
+            get => _imageMaxWidth;
+            set => SetProperty(ref _imageMaxWidth, value);
+        }
+
         public void RotateClockwise()
         {
             Rotation = (Rotation + 90) % 360;
@@ -91,6 +157,27 @@ namespace pdfMerge.Models
         public void RotateCounterClockwise()
         {
             Rotation = (Rotation - 90 + 360) % 360;
+        }
+
+        public PdfPageItem CloneSnapshot()
+        {
+            return new PdfPageItem
+            {
+                _id = this._id,
+                SourceFilePath = this.SourceFilePath,
+                OriginalPageIndex = this.OriginalPageIndex,
+                DisplayPageNumber = this.DisplayPageNumber,
+                Rotation = this.Rotation,
+                Thumbnail = this.Thumbnail,
+                IsSelected = false,
+                IsLoading = false,
+                IsBeingDragged = false,
+                PageSignature = this.PageSignature?.Clone(),
+                CardWidth = this.CardWidth,
+                CardHeight = this.CardHeight,
+                ImageMaxHeight = this.ImageMaxHeight,
+                ImageMaxWidth = this.ImageMaxWidth
+            };
         }
     }
 }

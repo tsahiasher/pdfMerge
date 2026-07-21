@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -8,6 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using pdfMerge.Models;
 using pdfMerge.Services;
@@ -17,11 +19,16 @@ namespace pdfMerge
     public partial class MainWindow : Window
     {
         private readonly PdfService _pdfService = new PdfService();
+
         private Point _dragStartPoint;
         private bool _isDraggingPages;
 
         private Point _marqueeStartPoint;
         private bool _isSelectingWithMarquee;
+
+        // Snapshot of original pages state for Revert All feature
+        private List<PdfPageItem> _originalPagesSnapshot = new List<PdfPageItem>();
+        private List<PdfPageItem>? _currentDraggedGroup;
 
         public ObservableCollection<PdfFileItem> Files { get; } = new ObservableCollection<PdfFileItem>();
         public ObservableCollection<PdfPageItem> Pages { get; } = new ObservableCollection<PdfPageItem>();
@@ -33,17 +40,46 @@ namespace pdfMerge
             LstFiles.ItemsSource = Files;
             LstPages.ItemsSource = Pages;
 
+            Pages.CollectionChanged += Pages_CollectionChanged;
+
             UpdateUIState();
         }
 
-        #region Drag & Drop Window PDF File Loading
+        private void Pages_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            if (e.NewItems != null)
+            {
+                foreach (PdfPageItem item in e.NewItems)
+                {
+                    item.PropertyChanged += PageItem_PropertyChanged;
+                }
+            }
+            if (e.OldItems != null)
+            {
+                foreach (PdfPageItem item in e.OldItems)
+                {
+                    item.PropertyChanged -= PageItem_PropertyChanged;
+                }
+            }
+            UpdateUIState();
+        }
+
+        private void PageItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(PdfPageItem.IsSelected))
+            {
+                UpdateUIState();
+            }
+        }
+
+        #region Drag & Drop Window PDF and Image File Loading
 
         private void Window_DragOver(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                if (files.Any(f => Path.GetExtension(f).Equals(".pdf", StringComparison.OrdinalIgnoreCase)))
+                if (files.Any(f => PdfService.IsSupportedFile(f)))
                 {
                     e.Effects = DragDropEffects.Copy;
                     e.Handled = true;
@@ -67,13 +103,13 @@ namespace pdfMerge
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 string[] droppedFiles = (string[])e.Data.GetData(DataFormats.FileDrop);
-                var pdfFiles = droppedFiles
-                    .Where(f => Path.GetExtension(f).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+                var supportedFiles = droppedFiles
+                    .Where(f => PdfService.IsSupportedFile(f))
                     .ToList();
 
-                if (pdfFiles.Any())
+                if (supportedFiles.Any())
                 {
-                    await AddPdfFilesAsync(pdfFiles);
+                    await AddFilesAsync(supportedFiles);
                 }
             }
         }
@@ -86,20 +122,20 @@ namespace pdfMerge
         {
             var dialog = new OpenFileDialog
             {
-                Filter = "PDF Files (*.pdf)|*.pdf",
+                Filter = "All Supported Files (*.pdf;*.png;*.jpg;*.jpeg;*.bmp;*.tiff;*.webp)|*.pdf;*.png;*.jpg;*.jpeg;*.bmp;*.tiff;*.webp|PDF Files (*.pdf)|*.pdf|Image Files (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|All Files (*.*)|*.*",
                 Multiselect = true,
-                Title = "Select PDF Files to Merge"
+                Title = "Select PDF or Image Files to Add"
             };
 
             if (dialog.ShowDialog(this) == true)
             {
-                await AddPdfFilesAsync(dialog.FileNames);
+                await AddFilesAsync(dialog.FileNames);
             }
         }
 
-        private async Task AddPdfFilesAsync(IEnumerable<string> filePaths)
+        private async Task AddFilesAsync(IEnumerable<string> filePaths)
         {
-            SetLoadingState(true, "Processing PDF files...");
+            SetLoadingState(true, "Processing files...");
 
             try
             {
@@ -133,6 +169,7 @@ namespace pdfMerge
                             Rotation = 0,
                             IsLoading = true
                         };
+                        ApplyZoomDimensionsToItem(pageItem, (int)SldZoom.Value);
                         Pages.Add(pageItem);
                         newPagesList.Add(pageItem);
                     }
@@ -154,13 +191,19 @@ namespace pdfMerge
                     SetLoadingState(true, $"Rendering page thumbnails ({completed}/{newPagesList.Count})...");
                 }
 
+                SaveOriginalSnapshot();
                 SetLoadingState(false, "Ready");
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, $"Error adding PDF file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(this, $"Error adding file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 SetLoadingState(false, "Error loading files");
             }
+        }
+
+        private void SaveOriginalSnapshot()
+        {
+            _originalPagesSnapshot = Pages.Select(p => p.CloneSnapshot()).ToList();
         }
 
         private void BtnRemoveFile_Click(object sender, RoutedEventArgs e)
@@ -213,33 +256,106 @@ namespace pdfMerge
         {
             if (Files.Count == 0 && Pages.Count == 0) return;
 
-            if (MessageBox.Show(this, "Are you sure you want to clear all loaded PDF files and pages?", "Clear All", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            if (MessageBox.Show(this, "Are you sure you want to clear all loaded files and pages?", "Clear All", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
                 Files.Clear();
                 Pages.Clear();
+                _originalPagesSnapshot.Clear();
                 UpdateUIState();
                 TxtStatus.Text = "Cleared all files";
             }
         }
 
+        private void BtnRevert_Click(object sender, RoutedEventArgs e)
+        {
+            if (Pages.Count == 0 && _originalPagesSnapshot.Count == 0) return;
+
+            if (MessageBox.Show(this, "Revert all changes and reload original files?", "Revert All Changes", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            {
+                Pages.Clear();
+                foreach (var snap in _originalPagesSnapshot)
+                {
+                    var restored = snap.CloneSnapshot();
+                    ApplyZoomDimensionsToItem(restored, (int)SldZoom.Value);
+                    Pages.Add(restored);
+                }
+
+                ReindexSequenceNumbers();
+                UpdateUIState();
+                TxtStatus.Text = "Reverted all changes to original files";
+            }
+        }
+
         #endregion
 
-        #region Marquee Selection (Rubber-Band Selection Box)
+        #region Zoom Slider Handling
+
+        private void SldZoom_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            int zoomLevel = (int)e.NewValue;
+            foreach (var page in Pages)
+            {
+                ApplyZoomDimensionsToItem(page, zoomLevel);
+            }
+        }
+
+        private void ApplyZoomDimensionsToItem(PdfPageItem page, int zoomLevel)
+        {
+            switch (zoomLevel)
+            {
+                case 1: // Small
+                    page.CardWidth = 160;
+                    page.CardHeight = 235;
+                    page.ImageMaxHeight = 140;
+                    page.ImageMaxWidth = 130;
+                    break;
+                case 3: // Large
+                    page.CardWidth = 260;
+                    page.CardHeight = 380;
+                    page.ImageMaxHeight = 275;
+                    page.ImageMaxWidth = 225;
+                    break;
+                case 4: // Extra Large
+                    page.CardWidth = 320;
+                    page.CardHeight = 460;
+                    page.ImageMaxHeight = 340;
+                    page.ImageMaxWidth = 280;
+                    break;
+                case 2: // Medium (Default)
+                default:
+                    page.CardWidth = 205;
+                    page.CardHeight = 305;
+                    page.ImageMaxHeight = 205;
+                    page.ImageMaxWidth = 175;
+                    break;
+            }
+        }
+
+        #endregion
+
+        #region Marquee Selection (Rubber-Band Box)
 
         private void LstPages_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             Point mousePos = e.GetPosition(LstPages);
+
+            // Bypass marquee selection if clicking on ScrollBar controls
+            HitTestResult hitTest = VisualTreeHelper.HitTest(GridGalleryContainer, e.GetPosition(GridGalleryContainer));
+            if (hitTest != null && IsClickOnScrollBar(hitTest.VisualHit))
+            {
+                return;
+            }
+
             var hitResult = GetListBoxItemAtPosition(mousePos);
 
             if (hitResult == null)
             {
-                // Clicked background space -> start marquee rubber-band selection
                 _isSelectingWithMarquee = true;
                 _marqueeStartPoint = mousePos;
 
                 if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) == 0)
                 {
-                    LstPages.UnselectAll();
+                    foreach (var p in Pages) p.IsSelected = false;
                 }
 
                 Canvas.SetLeft(SelectionRectangle, _marqueeStartPoint.X);
@@ -250,6 +366,22 @@ namespace pdfMerge
 
                 GridGalleryContainer.CaptureMouse();
             }
+        }
+
+        private bool IsClickOnScrollBar(DependencyObject hitVisual)
+        {
+            DependencyObject? obj = hitVisual;
+            while (obj != null && obj != GridGalleryContainer)
+            {
+                if (obj is System.Windows.Controls.Primitives.ScrollBar ||
+                    obj is System.Windows.Controls.Primitives.Thumb ||
+                    obj is System.Windows.Controls.Primitives.RepeatButton)
+                {
+                    return true;
+                }
+                obj = VisualTreeHelper.GetParent(obj);
+            }
+            return false;
         }
 
         private void LstPages_PreviewMouseMove(object sender, MouseEventArgs e)
@@ -270,7 +402,6 @@ namespace pdfMerge
 
                 Rect marqueeRect = new Rect(x, y, width, height);
 
-                // Update item selection states based on marquee rectangle intersection
                 foreach (var pageItem in Pages)
                 {
                     var container = LstPages.ItemContainerGenerator.ContainerFromItem(pageItem) as ListBoxItem;
@@ -281,17 +412,11 @@ namespace pdfMerge
 
                         if (marqueeRect.IntersectsWith(itemRect))
                         {
-                            if (!LstPages.SelectedItems.Contains(pageItem))
-                            {
-                                LstPages.SelectedItems.Add(pageItem);
-                            }
+                            pageItem.IsSelected = true;
                         }
                         else if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) == 0)
                         {
-                            if (LstPages.SelectedItems.Contains(pageItem))
-                            {
-                                LstPages.SelectedItems.Remove(pageItem);
-                            }
+                            pageItem.IsSelected = false;
                         }
                     }
                 }
@@ -310,7 +435,7 @@ namespace pdfMerge
 
         #endregion
 
-        #region Page Drag and Drop Reordering with Visual Marker & Auto-Scroll
+        #region Card Dragging & Dynamic Live Reflow
 
         private void ListBoxItem_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
@@ -318,11 +443,7 @@ namespace pdfMerge
             {
                 _dragStartPoint = e.GetPosition(null);
                 _isDraggingPages = false;
-
-                if (LstPages.SelectedItems.Contains(clickedPage))
-                {
-                    e.Handled = false;
-                }
+                e.Handled = false;
             }
         }
 
@@ -338,24 +459,37 @@ namespace pdfMerge
                 {
                     if (sender is ListBoxItem item && item.DataContext is PdfPageItem clickedPage)
                     {
-                        if (!LstPages.SelectedItems.Contains(clickedPage))
+                        var draggedItems = Pages.Where(p => p.IsSelected).ToList();
+                        if (draggedItems.Count == 0 || !draggedItems.Contains(clickedPage))
                         {
-                            if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) == 0)
-                            {
-                                LstPages.SelectedItems.Clear();
-                            }
-                            LstPages.SelectedItems.Add(clickedPage);
+                            draggedItems = new List<PdfPageItem> { clickedPage };
                         }
-
-                        var draggedItems = Pages.Where(p => LstPages.SelectedItems.Contains(p)).ToList();
 
                         if (draggedItems.Count > 0)
                         {
                             _isDraggingPages = true;
+                            _currentDraggedGroup = draggedItems;
+
+                            foreach (var p in draggedItems)
+                            {
+                                p.IsBeingDragged = true;
+                            }
+
+                            PdfPageItem primaryItem = draggedItems[0];
+                            GhostImage.Source = primaryItem.Thumbnail;
+                            GhostRotateTransform.Angle = primaryItem.Rotation;
+                            TxtGhostBadge.Text = draggedItems.Count > 1 ? $"{draggedItems.Count} Pages" : $"Page {primaryItem.DisplayPageNumber}";
+
+                            GhostCard.Width = primaryItem.CardWidth;
+                            GhostCard.Height = primaryItem.CardHeight;
+                            GhostCard.Visibility = Visibility.Visible;
+
                             DataObject dragData = new DataObject("PdfPageItems", draggedItems);
                             DragDrop.DoDragDrop(item, dragData, DragDropEffects.Move);
+
+                            ResetDraggedItemsState();
                             _isDraggingPages = false;
-                            InsertionMarker.Visibility = Visibility.Collapsed;
+                            GhostCard.Visibility = Visibility.Collapsed;
                         }
                     }
                 }
@@ -368,7 +502,6 @@ namespace pdfMerge
             {
                 e.Effects = DragDropEffects.Move;
 
-                // Viewport Edge Auto-Scrolling
                 ScrollViewer? scrollViewer = GetScrollViewer(LstPages);
                 if (scrollViewer != null)
                 {
@@ -386,37 +519,37 @@ namespace pdfMerge
                     }
                 }
 
-                // Position Visual Insertion Line Marker
+                Point ghostPos = e.GetPosition(GridGalleryContainer);
+                Canvas.SetLeft(GhostCard, Math.Max(0, ghostPos.X - (GhostCard.Width / 2.0)));
+                Canvas.SetTop(GhostCard, Math.Max(0, ghostPos.Y - (GhostCard.Height / 2.0)));
+                GhostCard.Visibility = Visibility.Visible;
+
                 Point mousePos = e.GetPosition(LstPages);
                 var hitResult = GetListBoxItemAtPosition(mousePos);
+                var draggedItems = e.Data.GetData("PdfPageItems") as List<PdfPageItem>;
 
-                if (hitResult != null)
+                if (draggedItems != null && draggedItems.Count > 0 && hitResult != null)
                 {
-                    ListBoxItem item = hitResult.Item1;
-                    Point itemRelPos = e.GetPosition(item);
-                    bool isBefore = itemRelPos.X < (item.ActualWidth / 2.0);
+                    PdfPageItem targetPage = hitResult.Item2;
+                    bool insertBefore = e.GetPosition(hitResult.Item1).X < (hitResult.Item1.ActualWidth / 2.0);
 
-                    Point canvasPos = item.TranslatePoint(new Point(isBefore ? -6 : item.ActualWidth + 2, 0), CnvInsertionMarker);
-                    Canvas.SetLeft(InsertionMarker, Math.Max(0, canvasPos.X));
-                    Canvas.SetTop(InsertionMarker, canvasPos.Y);
-                    InsertionMarker.Height = item.ActualHeight > 0 ? item.ActualHeight : 305;
-                    InsertionMarker.Visibility = Visibility.Visible;
-                }
-                else if (Pages.Count > 0)
-                {
-                    var lastContainer = LstPages.ItemContainerGenerator.ContainerFromIndex(Pages.Count - 1) as ListBoxItem;
-                    if (lastContainer != null)
+                    var orderedDragged = Pages.Where(p => draggedItems.Contains(p)).ToList();
+                    int targetIdxInPages = Pages.IndexOf(targetPage);
+
+                    if (targetIdxInPages >= 0 && !orderedDragged.Contains(targetPage))
                     {
-                        Point canvasPos = lastContainer.TranslatePoint(new Point(lastContainer.ActualWidth + 2, 0), CnvInsertionMarker);
-                        Canvas.SetLeft(InsertionMarker, canvasPos.X);
-                        Canvas.SetTop(InsertionMarker, canvasPos.Y);
-                        InsertionMarker.Height = lastContainer.ActualHeight > 0 ? lastContainer.ActualHeight : 305;
-                        InsertionMarker.Visibility = Visibility.Visible;
+                        foreach (var page in orderedDragged)
+                        {
+                            Pages.Remove(page);
+                        }
+
+                        int newInsert = Math.Min(Pages.IndexOf(targetPage) + (insertBefore ? 0 : 1), Pages.Count);
+                        for (int i = 0; i < orderedDragged.Count; i++)
+                        {
+                            Pages.Insert(Math.Min(newInsert + i, Pages.Count), orderedDragged[i]);
+                        }
+                        ReindexSequenceNumbers();
                     }
-                }
-                else
-                {
-                    InsertionMarker.Visibility = Visibility.Collapsed;
                 }
 
                 e.Handled = true;
@@ -424,73 +557,40 @@ namespace pdfMerge
             else
             {
                 e.Effects = DragDropEffects.None;
-                InsertionMarker.Visibility = Visibility.Collapsed;
+                GhostCard.Visibility = Visibility.Collapsed;
             }
         }
 
         private void LstPages_DragLeave(object sender, DragEventArgs e)
         {
-            InsertionMarker.Visibility = Visibility.Collapsed;
+            GhostCard.Visibility = Visibility.Collapsed;
         }
 
         private void LstPages_Drop(object sender, DragEventArgs e)
         {
-            InsertionMarker.Visibility = Visibility.Collapsed;
+            GhostCard.Visibility = Visibility.Collapsed;
+            ResetDraggedItemsState();
 
             if (e.Data.GetDataPresent("PdfPageItems"))
             {
                 var draggedItems = e.Data.GetData("PdfPageItems") as List<PdfPageItem>;
                 if (draggedItems == null || draggedItems.Count == 0) return;
 
-                Point dropPosition = e.GetPosition(LstPages);
-                var hitResult = GetListBoxItemAtPosition(dropPosition);
-
-                PdfPageItem? targetPage = null;
-                bool insertBefore = true;
-
-                if (hitResult != null)
-                {
-                    targetPage = hitResult.Item2;
-                    Point itemRelPos = e.GetPosition(hitResult.Item1);
-                    insertBefore = itemRelPos.X < (hitResult.Item1.ActualWidth / 2.0);
-                }
-
-                var orderedDragged = Pages.Where(p => draggedItems.Contains(p)).ToList();
-
-                foreach (var page in orderedDragged)
-                {
-                    Pages.Remove(page);
-                }
-
-                int insertIndex;
-                if (targetPage != null && Pages.Contains(targetPage))
-                {
-                    int targetIdxInUpdatedList = Pages.IndexOf(targetPage);
-                    insertIndex = insertBefore ? targetIdxInUpdatedList : targetIdxInUpdatedList + 1;
-                }
-                else
-                {
-                    insertIndex = Pages.Count;
-                }
-
-                for (int i = 0; i < orderedDragged.Count; i++)
-                {
-                    int currentInsert = Math.Min(insertIndex + i, Pages.Count);
-                    Pages.Insert(currentInsert, orderedDragged[i]);
-                }
-
                 ReindexSequenceNumbers();
                 UpdateUIState();
 
-                LstPages.SelectedItems.Clear();
-                foreach (var page in orderedDragged)
-                {
-                    LstPages.SelectedItems.Add(page);
-                }
-
-                TxtStatus.Text = $"Moved {orderedDragged.Count} page{(orderedDragged.Count == 1 ? "" : "s")}";
+                TxtStatus.Text = $"Moved {draggedItems.Count} page{(draggedItems.Count == 1 ? "" : "s")}";
                 e.Handled = true;
             }
+        }
+
+        private void ResetDraggedItemsState()
+        {
+            foreach (var page in Pages)
+            {
+                page.IsBeingDragged = false;
+            }
+            _currentDraggedGroup = null;
         }
 
         private Tuple<ListBoxItem, PdfPageItem>? GetListBoxItemAtPosition(Point position)
@@ -535,12 +635,20 @@ namespace pdfMerge
 
         private void BtnSelectAllPages_Click(object sender, RoutedEventArgs e)
         {
-            LstPages.SelectAll();
+            foreach (var page in Pages)
+            {
+                page.IsSelected = true;
+            }
+            UpdateUIState();
         }
 
         private void BtnDeselectAllPages_Click(object sender, RoutedEventArgs e)
         {
-            LstPages.UnselectAll();
+            foreach (var page in Pages)
+            {
+                page.IsSelected = false;
+            }
+            UpdateUIState();
         }
 
         private void BtnRotateSelectedCW_Click(object sender, RoutedEventArgs e)
@@ -565,7 +673,7 @@ namespace pdfMerge
 
         private void BtnDeleteSelected_Click(object sender, RoutedEventArgs e)
         {
-            var selectedPages = LstPages.SelectedItems.Cast<PdfPageItem>().ToList();
+            var selectedPages = Pages.Where(p => p.IsSelected).ToList();
             if (selectedPages.Count == 0) return;
 
             int count = selectedPages.Count;
@@ -608,15 +716,192 @@ namespace pdfMerge
             }
         }
 
+        private void BtnSignPage_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.DataContext is PdfPageItem pageItem)
+            {
+                var sigWindow = new pdfMerge.Views.SignatureWindow(pageItem)
+                {
+                    Owner = this
+                };
+
+                if (sigWindow.ShowDialog() == true && sigWindow.ResultSignature != null)
+                {
+                    pageItem.PageSignature = sigWindow.ResultSignature;
+
+                    if (pageItem.Thumbnail != null)
+                    {
+                        pageItem.Thumbnail = RenderSignatureOverlayOnThumbnail(pageItem.Thumbnail, sigWindow.ResultSignature);
+                    }
+
+                    TxtStatus.Text = $"Applied signature to Page {pageItem.DisplayPageNumber}";
+                }
+            }
+        }
+
+        private BitmapSource RenderSignatureOverlayOnThumbnail(BitmapSource baseThumb, AppliedSignature sig)
+        {
+            int width = baseThumb.PixelWidth;
+            int height = baseThumb.PixelHeight;
+
+            var visual = new DrawingVisual();
+            using (DrawingContext dc = visual.RenderOpen())
+            {
+                dc.DrawImage(baseThumb, new Rect(0, 0, width, height));
+
+                double sigX = width * sig.RelX;
+                double sigY = height * sig.RelY;
+                double sigW = width * sig.RelWidth;
+                double sigH = height * sig.RelHeight;
+
+                dc.DrawImage(sig.SignatureImage, new Rect(sigX, sigY, sigW, sigH));
+            }
+
+            var rtb = new RenderTargetBitmap(width, height, baseThumb.DpiX, baseThumb.DpiY, PixelFormats.Pbgra32);
+            rtb.Render(visual);
+            rtb.Freeze();
+            return rtb;
+        }
+
         private List<PdfPageItem> GetSelectedOrAllPages()
         {
-            var selected = LstPages.SelectedItems.Cast<PdfPageItem>().ToList();
+            var selected = Pages.Where(p => p.IsSelected).ToList();
             return selected.Count > 0 ? selected : Pages.ToList();
         }
 
         #endregion
 
-        #region Merge & Save Export
+        #region Save Selected, Export Images & Merge Export (Req 4)
+
+        private async void BtnExportSelectedImage_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedPages = Pages.Where(p => p.IsSelected).ToList();
+            if (selectedPages.Count == 0)
+            {
+                MessageBox.Show(this, "Please select at least one page to export as an image.", "No Pages Selected", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = "PNG Image (*.png)|*.png|JPEG Image (*.jpg)|*.jpg",
+                Title = "Export Selected Pages As Images",
+                FileName = selectedPages.Count == 1 ? $"Page_{selectedPages[0].DisplayPageNumber}.png" : "ExportedPage.png"
+            };
+
+            if (dialog.ShowDialog(this) == true)
+            {
+                bool isJpeg = Path.GetExtension(dialog.FileName).Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                              Path.GetExtension(dialog.FileName).Equals(".jpeg", StringComparison.OrdinalIgnoreCase);
+
+                SetLoadingState(true, $"Exporting {selectedPages.Count} selected page(s) to image...");
+
+                try
+                {
+                    string folder = Path.GetDirectoryName(dialog.FileName) ?? Environment.CurrentDirectory;
+                    string baseFileName = Path.GetFileNameWithoutExtension(dialog.FileName);
+                    string ext = isJpeg ? ".jpg" : ".png";
+
+                    int count = 0;
+                    foreach (var pageItem in selectedPages)
+                    {
+                        BitmapSource? pageImage = await _pdfService.RenderPageThumbnailAsync(pageItem.SourceFilePath, pageItem.OriginalPageIndex, 2048);
+                        if (pageImage == null && pageItem.Thumbnail != null)
+                        {
+                            pageImage = pageItem.Thumbnail;
+                        }
+
+                        if (pageImage != null)
+                        {
+                            if (pageItem.Rotation != 0)
+                            {
+                                pageImage = RotateBitmap(pageImage, pageItem.Rotation);
+                            }
+
+                            if (pageItem.PageSignature != null)
+                            {
+                                pageImage = RenderSignatureOverlayOnThumbnail(pageImage, pageItem.PageSignature);
+                            }
+
+                            string targetPath = selectedPages.Count == 1
+                                ? dialog.FileName
+                                : Path.Combine(folder, $"{baseFileName}_Page_{pageItem.DisplayPageNumber:D3}{ext}");
+
+                            using (var stream = new FileStream(targetPath, FileMode.Create))
+                            {
+                                BitmapEncoder encoder = isJpeg ? new JpegBitmapEncoder { QualityLevel = 95 } : new PngBitmapEncoder();
+                                encoder.Frames.Add(BitmapFrame.Create(pageImage));
+                                encoder.Save(stream);
+                            }
+
+                            count++;
+                        }
+                    }
+
+                    SetLoadingState(false, $"Exported {count} page image(s) successfully!");
+                    var result = MessageBox.Show(this, $"Successfully exported {count} page image(s) to:\n{folder}\n\nWould you like to open the output folder?", "Export Complete", MessageBoxButton.YesNo, MessageBoxImage.Information);
+                    if (result == MessageBoxResult.Yes)
+                    {
+                        System.Diagnostics.Process.Start("explorer.exe", folder);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, $"Failed to export page images: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    SetLoadingState(false, "Image export failed");
+                }
+            }
+        }
+
+        private BitmapSource RotateBitmap(BitmapSource source, int angle)
+        {
+            var transformed = new TransformedBitmap(source, new RotateTransform(angle));
+            transformed.Freeze();
+            return transformed;
+        }
+
+        private async void BtnSaveSelected_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedPages = Pages.Where(p => p.IsSelected).ToList();
+            if (selectedPages.Count == 0)
+            {
+                MessageBox.Show(this, "Please select at least one page to save.", "No Pages Selected", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = "PDF File (*.pdf)|*.pdf",
+                Title = "Save Selected PDF Pages As",
+                FileName = "SelectedPages.pdf"
+            };
+
+            if (dialog.ShowDialog(this) == true)
+            {
+                SetLoadingState(true, "Merging and saving selected PDF pages...");
+
+                try
+                {
+                    await _pdfService.MergeAndSavePdfAsync(selectedPages, dialog.FileName);
+                    SetLoadingState(false, "Selected PDF pages saved successfully!");
+
+                    var result = MessageBox.Show(this, $"Successfully created PDF with {selectedPages.Count} selected page(s):\n{dialog.FileName}\n\nWould you like to open the output folder?", "Save Selected Complete", MessageBoxButton.YesNo, MessageBoxImage.Information);
+                    if (result == MessageBoxResult.Yes)
+                    {
+                        string? folder = Path.GetDirectoryName(dialog.FileName);
+                        if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
+                        {
+                            System.Diagnostics.Process.Start("explorer.exe", folder);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, $"Failed to save selected PDF pages: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    SetLoadingState(false, "Save selected failed");
+                }
+            }
+        }
 
         private async void BtnMergeSave_Click(object sender, RoutedEventArgs e)
         {
@@ -703,7 +988,7 @@ namespace pdfMerge
             TxtFileCount.Text = $"{Files.Count} file{(Files.Count == 1 ? "" : "s")}";
             TxtPageCountBadge.Text = $"{Pages.Count} Page{(Pages.Count == 1 ? "" : "s")}";
 
-            int selectedCount = LstPages.SelectedItems.Count;
+            int selectedCount = Pages.Count(p => p.IsSelected);
             TxtSelectedCountBadge.Text = selectedCount > 0 ? $"({selectedCount} selected)" : "(0 selected)";
 
             bool hasPages = Pages.Count > 0;
@@ -715,6 +1000,9 @@ namespace pdfMerge
             BtnRotateSelectedCW.IsEnabled = hasPages;
             BtnRotateSelectedCCW.IsEnabled = hasPages;
             BtnDeleteSelected.IsEnabled = hasSelection;
+            BtnSaveSelected.IsEnabled = hasSelection;
+            BtnExportSelectedImage.IsEnabled = hasSelection;
+            BtnRevert.IsEnabled = hasPages || _originalPagesSnapshot.Count > 0;
         }
 
         private void SetLoadingState(bool isLoading, string statusText)
