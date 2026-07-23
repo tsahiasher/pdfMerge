@@ -210,6 +210,13 @@
                         </StackPanel>
                     </Button>
 
+                    <Button x:Name="BtnPrint" Click="BtnPrint_Click" Style="{StaticResource IconButtonLessStyle}" Margin="0,0,10,0" ToolTip="Print document or selected pages with color, page range, and duplex options">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🖨️ " FontSize="13"/>
+                            <TextBlock Text="Print"/>
+                        </StackPanel>
+                    </Button>
+
                     <Button x:Name="BtnMergeSave" Click="BtnMergeSave_Click" Style="{StaticResource SuccessButtonStyle}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="💾 " FontSize="14"/>
