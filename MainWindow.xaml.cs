@@ -222,6 +222,8 @@ namespace pdfMerge
                 int index = Files.IndexOf(fileItem);
                 if (index > 0)
                 {
+                    if (!ConfirmReorderFilesIfPagesCustomized()) return;
+
                     Files.Move(index, index - 1);
                     ReindexFilesOrder();
                     RebuildPagesFromFilesOrder();
@@ -236,11 +238,51 @@ namespace pdfMerge
                 int index = Files.IndexOf(fileItem);
                 if (index >= 0 && index < Files.Count - 1)
                 {
+                    if (!ConfirmReorderFilesIfPagesCustomized()) return;
+
                     Files.Move(index, index + 1);
                     ReindexFilesOrder();
                     RebuildPagesFromFilesOrder();
                 }
             }
+        }
+
+        private bool HasCustomPageOrder()
+        {
+            if (Pages.Count <= 1) return false;
+
+            var fileOrderDict = Files.Select((f, idx) => new { f.FilePath, idx })
+                                     .ToDictionary(x => x.FilePath, x => x.idx, StringComparer.OrdinalIgnoreCase);
+
+            var expectedOrder = Pages.OrderBy(p => fileOrderDict.TryGetValue(p.SourceFilePath, out int order) ? order : int.MaxValue)
+                                     .ThenBy(p => p.OriginalPageIndex)
+                                     .ToList();
+
+            for (int i = 0; i < Pages.Count; i++)
+            {
+                if (Pages[i] != expectedOrder[i])
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool ConfirmReorderFilesIfPagesCustomized()
+        {
+            if (HasCustomPageOrder())
+            {
+                var result = MessageBox.Show(
+                    this,
+                    "Reordering source files will reset all pages back to their original file order, undoing any custom page reordering you have done.\n\nDo you want to proceed?",
+                    "Reset Custom Page Order?",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                return result == MessageBoxResult.Yes;
+            }
+            return true;
         }
 
         private void BtnClearAll_Click(object sender, RoutedEventArgs e)
