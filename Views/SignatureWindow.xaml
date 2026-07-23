@@ -214,7 +214,7 @@
                         <!-- TAB 1: DRAW -->
                         <Grid x:Name="PnlTabDraw" Visibility="Visible">
                             <StackPanel HorizontalAlignment="Center">
-                                <!-- Draw Bar Controls: Thickness Slider Only (Color Option Removed) -->
+                                <!-- Draw Bar Controls: Thickness Slider Only -->
                                 <Grid Width="600" Margin="0,0,0,10">
                                     <!-- Thickness Slider -->
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
@@ -258,18 +258,17 @@
                         <!-- TAB 2: TYPE -->
                         <Grid x:Name="PnlTabType" Visibility="Collapsed">
                             <StackPanel HorizontalAlignment="Center" Width="600">
-                                <!-- Text Input Box with GotFocus Auto-Clear -->
-                                <TextBlock Text="Type Your Name:" FontSize="13" FontWeight="SemiBold" Foreground="#E2E8F0" Margin="0,0,0,6"/>
-                                <TextBox x:Name="TxtTypedSignature" Text="Signature Preview" FontSize="15" Padding="10,6" Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155" BorderThickness="1.5" GotFocus="TxtTypedSignature_GotFocus" LostFocus="TxtTypedSignature_LostFocus" TextChanged="TxtTypedSignature_TextChanged" Margin="0,0,0,10"/>
+                                <!-- Text Input Box with "Type your signature" Label -->
+                                <TextBlock Text="Type your signature" FontSize="13" FontWeight="SemiBold" Foreground="#E2E8F0" Margin="0,0,0,6"/>
+                                <TextBox x:Name="TxtTypedSignature" Text="Signature Preview" FontSize="15" Padding="10,6" Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155" BorderThickness="1.5" GotFocus="TxtTypedSignature_GotFocus" LostFocus="TxtTypedSignature_LostFocus" TextChanged="TxtTypedSignature_TextChanged" Margin="0,0,0,12"/>
 
-                                <!-- Handwriting Font Pills Selector -->
-                                <TextBlock Text="Select Handwriting Font Style (English &amp; Hebrew):" FontSize="12" Foreground="#94A3B8" Margin="0,0,0,6"/>
-                                <WrapPanel x:Name="PnlFontPills" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
+                                <!-- Handwriting Font Pills Selector (Subtitle Text Removed) -->
+                                <WrapPanel x:Name="PnlFontPills" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,12">
                                     <!-- Dynamic Font Pill Buttons -->
                                 </WrapPanel>
 
                                 <!-- Live Signature Text Preview Container -->
-                                <Border x:Name="BdrTypedPreview" BorderBrush="#0EA5E9" BorderThickness="2" CornerRadius="8" Width="600" Height="130" Background="White" ClipToBounds="True" Margin="0,0,0,10">
+                                <Border x:Name="BdrTypedPreview" BorderBrush="#0EA5E9" BorderThickness="2" CornerRadius="8" Width="600" Height="130" Background="White" ClipToBounds="True" Margin="0,0,0,12">
                                     <Grid x:Name="GridTypedPreview">
                                         <TextBlock x:Name="TxtTypedPreview" Text="Signature Preview" FontSize="38" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" TextWrapping="NoWrap"/>
                                     </Grid>
@@ -322,12 +321,12 @@
                             </StackPanel>
                         </Grid>
 
-                        <!-- TAB 4: SYMBOL -->
+                        <!-- TAB 4: SYMBOL (Save to Library Removed) -->
                         <Grid x:Name="PnlTabSymbol" Visibility="Collapsed">
                             <StackPanel HorizontalAlignment="Center" Width="600">
                                 <TextBlock Text="Select Symbol Stamp:" FontSize="13" FontWeight="SemiBold" Foreground="#E2E8F0" Margin="0,0,0,8"/>
                                 
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,12">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,14">
                                     <Button x:Name="BtnSymbolCheck" Click="BtnSymbol_Click" Content="✔  Checkmark (V)" Tag="✔" Padding="14,7" Margin="0,0,8,0" Background="#0EA5E9" Foreground="White" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
                                     <Button x:Name="BtnSymbolCross" Click="BtnSymbol_Click" Content="✖  Cross (X)" Tag="✖" Padding="14,7" Margin="0,0,8,0" Background="#334155" Foreground="White" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
                                     <Button x:Name="BtnSymbolStar" Click="BtnSymbol_Click" Content="★  Star" Tag="★" Padding="14,7" Margin="0,0,8,0" Background="#334155" Foreground="White" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
@@ -335,19 +334,11 @@
                                 </StackPanel>
 
                                 <!-- Symbol Live Preview Container (Black Only) -->
-                                <Border x:Name="BdrSymbolPreview" BorderBrush="#0EA5E9" BorderThickness="2" CornerRadius="8" Width="600" Height="150" Background="White" ClipToBounds="True" Margin="0,0,0,10">
+                                <Border x:Name="BdrSymbolPreview" BorderBrush="#0EA5E9" BorderThickness="2" CornerRadius="8" Width="600" Height="170" Background="White" ClipToBounds="True">
                                     <Grid x:Name="GridSymbolPreview">
                                         <TextBlock x:Name="TxtSymbolPreview" Text="✔" FontSize="72" FontWeight="Bold" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Grid>
                                 </Border>
-
-                                <!-- Save Symbol Signature to Library Button -->
-                                <Button Click="BtnSaveSignatureToLibrary_Click" Style="{StaticResource {x:Type Button}}" Padding="14,6" Background="#10B981" Foreground="White" BorderThickness="0" FontWeight="Bold" HorizontalAlignment="Center">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="💾 " FontSize="12"/>
-                                        <TextBlock Text="Save to Library"/>
-                                    </StackPanel>
-                                </Button>
                             </StackPanel>
                         </Grid>
                     </Grid>
