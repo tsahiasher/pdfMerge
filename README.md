@@ -12,17 +12,17 @@ A modern Windows desktop application built in C# for viewing, organizing, rotati
 - **File List Management**: Reorder input files or remove specific files before processing.
 - **File Information**: View file size, page count, and status badges for all loaded files.
 
-### ✏️ 2. Interactive Page Signing Wizard
+### ✏️ 2. Interactive Page Signing Wizard (4 Creation Modes)
 - **Top-Right Pencil Icon (✏️)**: Every thumbnail card features a pencil sign button to open the 2-step signing wizard.
 - **Step 1: Placement Bounding Box**: Drag a rectangle on the full-page preview specifying the exact position and dimensions where the signature should be placed. Redragging replaces the previous box.
-- **Step 2: Signature Creation Modes**:
-  - **Freehand Drawing Canvas**: Draw your signature with smooth mouse ink drawing.
-  - **Load Image Signature**: Import a PNG/JPG signature image file.
-  - **Saved Signatures Gallery**: Select from previously saved signatures stored locally in `%AppData%/pdfMerge/Signatures`.
+- **Step 2: 4-Tabbed Signature Creation Interface**:
+  - **✏️ Draw**: Freehand ink drawing canvas with stroke thickness bar (1px to 15px), Undo, and Clear.
+  - **⌨️ Type**: Type text/name in English or Hebrew with dynamic font pill selectors (`Segoe Script`, `Segoe Print`, `Comic Sans MS`, `Guttman Yad`, `Lucida Handwriting`, `Brush Script MT`, `Arial`).
+  - **📤 Upload**: Drag & drop signature image zone with support for PNG, JPG, BMP and automatic background transparency.
+  - **✔ Symbol**: Stamp selector for Checkmark / V (`✔`), Cross / X (`✖`), Star (`★`), and Approved (`APPROVED`).
+- **Saved Signatures Gallery**: Save created signatures to your local library for future reuse or delete unwanted ones (`✕`).
 - **Controls & Navigation**:
   - **Back**: Navigation button to return to Step 1.
-  - **Undo & Clear**: Undo mouse strokes or reset the canvas.
-  - **Save Signature**: Save drawn signature to your local library for future reuse.
   - **Apply Signature**: Permanently burn the signature onto the page at exact coordinates.
 
 ### 🖼️ 3. High-Resolution Image Export (PNG / JPG)
@@ -31,7 +31,7 @@ A modern Windows desktop application built in C# for viewing, organizing, rotati
 ### 🔍 4. Visual Page Thumbnails
 - **High-Fidelity Previews**: Displays interactive thumbnail previews for every PDF page and imported image (including signed page overlays).
 - **Live Sequence Tracking**: Shows exact output page numbers as pages are reordered.
-- **4-Level Zoom Slider**: Adjust preview card sizes dynamically (`- [1|2|3|4] +`).
+- **4-Level Zoom Slider**: Adjust preview card sizes dynamically with vector magnifying glass lens controls (`🔍-` / `🔍+`).
 
 ### 🖐️ 5. Interactive Page Reordering & Dynamic Reflow
 - **Drag & Drop Page Movement**: Drag any page thumbnail and drop it at a specific position in the document.
@@ -44,7 +44,7 @@ A modern Windows desktop application built in C# for viewing, organizing, rotati
 - **Instant Toolbar Button Binding**: Checking or unchecking any CheckBox immediately updates `Delete Selected`, `Save Selected`, and `Export Images` button states.
 - **Top-Left Checkbox Selection**: Select or deselect pages using the CheckBox on the top-left of each card.
 - **Rubber-Band Marquee Selection**: Click and drag a selection rectangle on the background to multi-select multiple pages at once.
-- **Toolbar Actions**: Select All or Deselect All with a single click.
+- **Toolbar Actions**: Select All (with stacked double check icon `✓✓`) or Deselect (`✕`).
 
 ### ↻ 7. Lossless Page Rotation
 - **Metadata-Only Rotation**: Rotate individual or multi-selected pages Clockwise (+90°) or Counter-Clockwise (-90°).
@@ -52,7 +52,7 @@ A modern Windows desktop application built in C# for viewing, organizing, rotati
 
 ### 🗑️ 8. Page Filtering & Deletion
 - Delete individual pages or multi-selected page groups with a single click.
-- **Revert All**: Undo all page reordering, page rotations, signatures, and page deletions to restore original files.
+- **Revert All**: Undo all page reordering, page rotations, signatures, and page deletions to restore original files (`🔄`).
 
 ### ⚡ 9. PDF Merging & Export
 - **Merge All**: Combines all configured PDF, image, and signed pages into a single output PDF document.

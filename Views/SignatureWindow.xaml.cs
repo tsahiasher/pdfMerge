@@ -27,8 +27,12 @@ namespace pdfMerge.Views
         private bool _isDrawingRect;
         private Rect _relativePlacementRect = new Rect(0.1, 0.1, 0.3, 0.15);
 
+        private int _activeTabIndex = 0; // 0: Draw, 1: Type, 2: Upload, 3: Symbol
         private BitmapSource? _loadedImageSignature;
         private readonly string _signaturesFolderPath;
+
+        private FontFamily _selectedFontFamily = new FontFamily("Segoe Script");
+        private string _selectedSymbol = "✔";
 
         public ObservableCollection<SavedSignatureItem> SavedSignatures { get; } = new ObservableCollection<SavedSignatureItem>();
         public AppliedSignature? ResultSignature { get; private set; }
@@ -51,11 +55,14 @@ namespace pdfMerge.Views
             LstSavedSignatures.ItemsSource = SavedSignatures;
             LoadSavedSignatures();
 
-            // Set default stroke attributes for drawing
+            // Set default stroke attributes for drawing (Black Ink only)
             InkSignCanvas.DefaultDrawingAttributes.Color = Colors.Black;
             InkSignCanvas.DefaultDrawingAttributes.Width = 3;
             InkSignCanvas.DefaultDrawingAttributes.Height = 3;
             InkSignCanvas.DefaultDrawingAttributes.FitToCurve = true;
+
+            InitializeFontPills();
+            SwitchTab(0);
         }
 
         #region Step 1: Drag Signature Placement Box
@@ -186,7 +193,7 @@ namespace pdfMerge.Views
                 BtnBackStep.Visibility = Visibility.Visible;
 
                 TxtWizardStepTitle.Text = "Step 2 of 2: Create or Choose Signature";
-                TxtWizardStepSubtitle.Text = "Draw a signature with your mouse, import an image file, or choose a saved signature from your library.";
+                TxtWizardStepSubtitle.Text = "Draw, type, upload an image, or choose a symbol / saved signature.";
             }
             catch (Exception ex)
             {
@@ -209,13 +216,57 @@ namespace pdfMerge.Views
 
         #endregion
 
-        #region Step 2: Ink Drawing, Image Loading & Saved Signatures
+        #region Step 2: Tab Navigation (Draw, Type, Upload, Symbol)
+
+        private void SwitchTab(int tabIndex)
+        {
+            _activeTabIndex = tabIndex;
+
+            // Reset tab button visual styles
+            SetTabButtonStyle(BtnTabDraw, tabIndex == 0);
+            SetTabButtonStyle(BtnTabType, tabIndex == 1);
+            SetTabButtonStyle(BtnTabUpload, tabIndex == 2);
+            SetTabButtonStyle(BtnTabSymbol, tabIndex == 3);
+
+            // Show active panel
+            PnlTabDraw.Visibility = tabIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
+            PnlTabType.Visibility = tabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+            PnlTabUpload.Visibility = tabIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
+            PnlTabSymbol.Visibility = tabIndex == 3 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void SetTabButtonStyle(Button btn, bool isActive)
+        {
+            btn.Foreground = new SolidColorBrush(isActive ? Color.FromRgb(14, 165, 233) : Color.FromRgb(148, 163, 184));
+            btn.BorderBrush = new SolidColorBrush(isActive ? Color.FromRgb(14, 165, 233) : Colors.Transparent);
+            btn.BorderThickness = new Thickness(0, 0, 0, isActive ? 3 : 0);
+            btn.FontWeight = isActive ? FontWeights.Bold : FontWeights.SemiBold;
+        }
+
+        private void BtnTabDraw_Click(object sender, RoutedEventArgs e) => SwitchTab(0);
+        private void BtnTabType_Click(object sender, RoutedEventArgs e) => SwitchTab(1);
+        private void BtnTabUpload_Click(object sender, RoutedEventArgs e) => SwitchTab(2);
+        private void BtnTabSymbol_Click(object sender, RoutedEventArgs e) => SwitchTab(3);
+
+        #endregion
+
+        #region Tab 1: Draw (Ink Canvas & Thickness Bar)
+
+        private void SldThickness_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (InkSignCanvas != null && TxtThicknessValue != null)
+            {
+                double val = Math.Round(e.NewValue);
+                TxtThicknessValue.Text = $"{val}px";
+
+                InkSignCanvas.DefaultDrawingAttributes.Width = val;
+                InkSignCanvas.DefaultDrawingAttributes.Height = val;
+            }
+        }
 
         private void InkSignCanvas_StrokeCollected(object sender, InkCanvasStrokeCollectedEventArgs e)
         {
             _loadedImageSignature = null;
-            ImgSignaturePreview.Source = null;
-            ImgSignaturePreview.Visibility = Visibility.Collapsed;
             LstSavedSignatures.UnselectAll();
         }
 
@@ -231,9 +282,144 @@ namespace pdfMerge.Views
         {
             InkSignCanvas.Strokes.Clear();
             _loadedImageSignature = null;
-            ImgSignaturePreview.Source = null;
-            ImgSignaturePreview.Visibility = Visibility.Collapsed;
             LstSavedSignatures.UnselectAll();
+        }
+
+        #endregion
+
+        #region Tab 2: Type (Handwriting Fonts for EN & HE & GotFocus Clear)
+
+        private void InitializeFontPills()
+        {
+            string[] fontOptions = new[]
+            {
+                "Segoe Script",
+                "Segoe Print",
+                "Comic Sans MS",
+                "Guttman Yad",
+                "Lucida Handwriting",
+                "Brush Script MT",
+                "Arial"
+            };
+
+            PnlFontPills.Children.Clear();
+
+            foreach (var fontName in fontOptions)
+            {
+                var btn = new Button
+                {
+                    Content = fontName,
+                    FontFamily = new FontFamily(fontName),
+                    FontSize = 13,
+                    Padding = new Thickness(10, 5, 10, 5),
+                    Margin = new Thickness(0, 0, 8, 6),
+                    Background = new SolidColorBrush(fontName.Equals(_selectedFontFamily.Source) ? Color.FromRgb(14, 165, 233) : Color.FromRgb(51, 65, 85)),
+                    Foreground = Brushes.White,
+                    BorderThickness = new Thickness(0),
+                    Cursor = Cursors.Hand,
+                    Tag = fontName
+                };
+
+                btn.Click += FontPill_Click;
+                PnlFontPills.Children.Add(btn);
+            }
+
+            UpdateTypedPreviewFont();
+        }
+
+        private void FontPill_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string fontName)
+            {
+                _selectedFontFamily = new FontFamily(fontName);
+
+                foreach (UIElement child in PnlFontPills.Children)
+                {
+                    if (child is Button b)
+                    {
+                        bool isSelected = fontName.Equals(b.Tag as string);
+                        b.Background = new SolidColorBrush(isSelected ? Color.FromRgb(14, 165, 233) : Color.FromRgb(51, 65, 85));
+                        b.FontWeight = isSelected ? FontWeights.Bold : FontWeights.Normal;
+                    }
+                }
+
+                UpdateTypedPreviewFont();
+            }
+        }
+
+        private void TxtTypedSignature_GotFocus(object sender, RoutedEventArgs e)
+        {
+            if (TxtTypedSignature.Text == "Signature Preview")
+            {
+                TxtTypedSignature.Text = string.Empty;
+            }
+        }
+
+        private void TxtTypedSignature_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(TxtTypedSignature.Text))
+            {
+                TxtTypedSignature.Text = "Signature Preview";
+            }
+        }
+
+        private void TxtTypedSignature_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (TxtTypedPreview != null)
+            {
+                TxtTypedPreview.Text = string.IsNullOrWhiteSpace(TxtTypedSignature.Text) ? "Signature Preview" : TxtTypedSignature.Text;
+            }
+        }
+
+        private void UpdateTypedPreviewFont()
+        {
+            if (TxtTypedPreview != null)
+            {
+                TxtTypedPreview.FontFamily = _selectedFontFamily;
+            }
+        }
+
+        #endregion
+
+        #region Tab 3: Upload Image Signature & Drag-Drop Zone
+
+        private void BdrUploadDropZone_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            BtnLoadImageSignature_Click(sender, e);
+        }
+
+        private void BdrUploadDropZone_DragOver(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+                if (files.Length > 0 && IsSupportedImageFile(files[0]))
+                {
+                    e.Effects = DragDropEffects.Copy;
+                    e.Handled = true;
+                    return;
+                }
+            }
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+        }
+
+        private void BdrUploadDropZone_Drop(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+                if (files.Length > 0 && IsSupportedImageFile(files[0]))
+                {
+                    LoadImageFromFile(files[0]);
+                }
+            }
+        }
+
+        private bool IsSupportedImageFile(string filePath)
+        {
+            string ext = Path.GetExtension(filePath).ToLowerInvariant();
+            return ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp";
         }
 
         private void BtnLoadImageSignature_Click(object sender, RoutedEventArgs e)
@@ -246,37 +432,63 @@ namespace pdfMerge.Views
 
             if (dialog.ShowDialog(this) == true)
             {
-                try
-                {
-                    using var stream = File.OpenRead(dialog.FileName);
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.StreamSource = stream;
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.EndInit();
-                    bitmap.Freeze();
-
-                    _loadedImageSignature = bitmap;
-                    ImgSignaturePreview.Source = bitmap;
-                    ImgSignaturePreview.Visibility = Visibility.Visible;
-                    InkSignCanvas.Strokes.Clear();
-                    LstSavedSignatures.UnselectAll();
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(this, $"Failed to load signature image: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+                LoadImageFromFile(dialog.FileName);
             }
         }
 
+        private void LoadImageFromFile(string filePath)
+        {
+            try
+            {
+                using var stream = File.OpenRead(filePath);
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.StreamSource = stream;
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.EndInit();
+                bitmap.Freeze();
+
+                _loadedImageSignature = bitmap;
+                ImgUploadedPreview.Source = bitmap;
+                ImgUploadedPreview.Visibility = Visibility.Visible;
+                PnlUploadInstructions.Visibility = Visibility.Collapsed;
+                LstSavedSignatures.UnselectAll();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, $"Failed to load signature image: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        #endregion
+
+        #region Tab 4: Symbol (Black Only)
+
+        private void BtnSymbol_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string symbol)
+            {
+                _selectedSymbol = symbol;
+                TxtSymbolPreview.Text = symbol;
+
+                // Symbols are Black Only per user request
+                TxtSymbolPreview.Foreground = Brushes.Black;
+                TxtSymbolPreview.FontSize = symbol == "APPROVED" ? 36 : 72;
+
+                // Update button active state
+                BtnSymbolCheck.Background = new SolidColorBrush(symbol == "✔" ? Color.FromRgb(14, 165, 233) : Color.FromRgb(51, 65, 85));
+                BtnSymbolCross.Background = new SolidColorBrush(symbol == "✖" ? Color.FromRgb(14, 165, 233) : Color.FromRgb(51, 65, 85));
+                BtnSymbolStar.Background = new SolidColorBrush(symbol == "★" ? Color.FromRgb(14, 165, 233) : Color.FromRgb(51, 65, 85));
+                BtnSymbolApproved.Background = new SolidColorBrush(symbol == "APPROVED" ? Color.FromRgb(14, 165, 233) : Color.FromRgb(51, 65, 85));
+            }
+        }
+
+        #endregion
+
+        #region Saved Signatures Library & Persistence
+
         private void BtnSaveSignatureToLibrary_Click(object sender, RoutedEventArgs e)
         {
-            if (InkSignCanvas.Strokes.Count == 0 && _loadedImageSignature == null)
-            {
-                MessageBox.Show(this, "Please draw a signature or load an image first.", "Empty Signature", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
             try
             {
                 BitmapSource sigBitmap = GetCurrentSignatureBitmap();
@@ -330,9 +542,6 @@ namespace pdfMerge.Views
             if (LstSavedSignatures.SelectedItem is SavedSignatureItem selected)
             {
                 _loadedImageSignature = selected.Image;
-                ImgSignaturePreview.Source = selected.Image;
-                ImgSignaturePreview.Visibility = Visibility.Visible;
-                InkSignCanvas.Strokes.Clear();
             }
         }
 
@@ -352,8 +561,6 @@ namespace pdfMerge.Views
                 if (_loadedImageSignature == item.Image)
                 {
                     _loadedImageSignature = null;
-                    ImgSignaturePreview.Source = null;
-                    ImgSignaturePreview.Visibility = Visibility.Collapsed;
                 }
 
                 SavedSignatures.Remove(item);
@@ -361,37 +568,60 @@ namespace pdfMerge.Views
             }
         }
 
+        #endregion
+
+        #region Output Bitmap Rendering
+
         private BitmapSource GetCurrentSignatureBitmap()
         {
-            if (_loadedImageSignature != null)
+            if (LstSavedSignatures.SelectedItem is SavedSignatureItem selected)
             {
-                return _loadedImageSignature;
+                return selected.Image;
             }
 
-            int width = (int)InkSignCanvas.ActualWidth;
-            int height = (int)InkSignCanvas.ActualHeight;
-
-            if (width <= 0) width = 600;
-            if (height <= 0) height = 260;
-
-            var renderTarget = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
-            var visual = new DrawingVisual();
-
-            using (DrawingContext dc = visual.RenderOpen())
+            switch (_activeTabIndex)
             {
-                VisualBrush vb = new VisualBrush(InkSignCanvas);
+                case 1: // Type
+                    return RenderVisualToBitmap(GridTypedPreview, 600, 130);
+
+                case 2: // Upload
+                    if (_loadedImageSignature != null) return _loadedImageSignature;
+                    return RenderVisualToBitmap(PnlUploadInstructions, 600, 180);
+
+                case 3: // Symbol
+                    return RenderVisualToBitmap(GridSymbolPreview, 600, 150);
+
+                case 0: // Draw
+                default:
+                    if (_loadedImageSignature != null) return _loadedImageSignature;
+                    return RenderVisualToBitmap(GridDrawCanvasArea, 600, 220);
+            }
+        }
+
+        private BitmapSource RenderVisualToBitmap(Visual visual, int width, int height)
+        {
+            if (width <= 0) width = 600;
+            if (height <= 0) height = 200;
+
+            var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+            var dv = new DrawingVisual();
+
+            using (DrawingContext dc = dv.RenderOpen())
+            {
+                VisualBrush vb = new VisualBrush(visual) { Stretch = Stretch.Uniform };
                 dc.DrawRectangle(vb, null, new Rect(0, 0, width, height));
             }
 
-            renderTarget.Render(visual);
-            return renderTarget;
+            rtb.Render(dv);
+            rtb.Freeze();
+            return rtb;
         }
 
         private void BtnFinishStep2_Click(object sender, RoutedEventArgs e)
         {
-            if (InkSignCanvas.Strokes.Count == 0 && _loadedImageSignature == null)
+            if (_activeTabIndex == 0 && InkSignCanvas.Strokes.Count == 0 && _loadedImageSignature == null && LstSavedSignatures.SelectedItem == null)
             {
-                MessageBox.Show(this, "Please draw a signature, load an image, or select a saved signature.", "No Signature", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(this, "Please draw a signature, type a signature, upload an image, or select a saved signature.", "Empty Signature", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
