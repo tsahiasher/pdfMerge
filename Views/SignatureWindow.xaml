@@ -4,8 +4,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="Sign PDF Page" Height="740" Width="980"
-        MinHeight="620" MinWidth="850"
+        Title="Sign PDF Page" Height="665" Width="960"
+        MinHeight="665" MinWidth="800"
         WindowStartupLocation="CenterOwner"
         Background="#0F172A" Foreground="#F8FAFC">
 
@@ -117,14 +117,14 @@
         </Grid.RowDefinitions>
 
         <!-- WIZARD HEADER -->
-        <Border Grid.Row="0" Background="#1E293B" CornerRadius="8" Padding="16,12" Margin="0,0,0,16">
+        <Border Grid.Row="0" Background="#1E293B" CornerRadius="8" Padding="16,10" Margin="0,0,0,10">
             <Grid>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Width="32" Height="32" Background="Transparent" Margin="0,0,10,0">
-                        <TextBlock Text="✏️" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Border Width="30" Height="30" Background="Transparent" Margin="0,0,10,0">
+                        <TextBlock Text="✏️" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock x:Name="TxtWizardStepTitle" Text="Step 1 of 2: Draw Signature Placement Box" FontSize="16" FontWeight="Bold" Foreground="#F8FAFC"/>
+                        <TextBlock x:Name="TxtWizardStepTitle" Text="Step 1 of 2: Draw Signature Placement Box" FontSize="15" FontWeight="Bold" Foreground="#F8FAFC"/>
                         <TextBlock x:Name="TxtWizardStepSubtitle" Text="Click and drag your mouse on the page preview to specify where to place the signature." FontSize="12" Foreground="#94A3B8"/>
                     </StackPanel>
                 </StackPanel>
@@ -135,7 +135,7 @@
         <Grid Grid.Row="1">
             <!-- STEP 1: DRAW SIGNATURE PLACEMENT BOX -->
             <Grid x:Name="PnlStep1" Visibility="Visible">
-                <Border Background="#182232" BorderBrush="#334155" BorderThickness="1" CornerRadius="8" Padding="12">
+                <Border Background="#182232" BorderBrush="#334155" BorderThickness="1" CornerRadius="8" Padding="10">
                     <Grid x:Name="GridStep1Canvas"
                           MouseLeftButtonDown="Step1Canvas_MouseLeftButtonDown"
                           MouseMove="Step1Canvas_MouseMove"
@@ -153,13 +153,13 @@
                 </Border>
             </Grid>
 
-            <!-- STEP 2: CREATE & SELECT SIGNATURE (4 TABS DESIGN) -->
+            <!-- STEP 2: CREATE & SELECT SIGNATURE (UNIFORM FIXED HEIGHT 300px CONTAINER) -->
             <Grid x:Name="PnlStep2" Visibility="Collapsed">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <!-- Tab Navigation Header Bar -->
-                    <RowDefinition Height="*"/>
-                    <!-- Active Tab Content Area -->
+                    <RowDefinition Height="Auto"/>
+                    <!-- Active Tab Content Area (Fixed 300px Height) -->
                     <RowDefinition Height="Auto"/>
                     <!-- Saved Signatures Gallery -->
                 </Grid.RowDefinitions>
@@ -175,7 +175,7 @@
                         </Grid.ColumnDefinitions>
 
                         <!-- Tab 1: Draw -->
-                        <Button x:Name="BtnTabDraw" Grid.Column="0" Click="BtnTabDraw_Click" Padding="12,10" Background="Transparent" Foreground="#0EA5E9" BorderThickness="0,0,0,3" BorderBrush="#0EA5E9" FontWeight="Bold" FontSize="14" Cursor="Hand">
+                        <Button x:Name="BtnTabDraw" Grid.Column="0" Click="BtnTabDraw_Click" Padding="12,8" Background="Transparent" Foreground="#0EA5E9" BorderThickness="0,0,0,3" BorderBrush="#0EA5E9" FontWeight="Bold" FontSize="14" Cursor="Hand">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <TextBlock Text="✏️ " FontSize="13"/>
                                 <TextBlock Text="Draw"/>
@@ -183,7 +183,7 @@
                         </Button>
 
                         <!-- Tab 2: Type -->
-                        <Button x:Name="BtnTabType" Grid.Column="1" Click="BtnTabType_Click" Padding="12,10" Background="Transparent" Foreground="#94A3B8" BorderThickness="0,0,0,0" BorderBrush="Transparent" FontWeight="SemiBold" FontSize="14" Cursor="Hand">
+                        <Button x:Name="BtnTabType" Grid.Column="1" Click="BtnTabType_Click" Padding="12,8" Background="Transparent" Foreground="#94A3B8" BorderThickness="0,0,0,0" BorderBrush="Transparent" FontWeight="SemiBold" FontSize="14" Cursor="Hand">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <TextBlock Text="⌨️ " FontSize="13"/>
                                 <TextBlock Text="Type"/>
@@ -191,7 +191,7 @@
                         </Button>
 
                         <!-- Tab 3: Upload -->
-                        <Button x:Name="BtnTabUpload" Grid.Column="2" Click="BtnTabUpload_Click" Padding="12,10" Background="Transparent" Foreground="#94A3B8" BorderThickness="0,0,0,0" BorderBrush="Transparent" FontWeight="SemiBold" FontSize="14" Cursor="Hand">
+                        <Button x:Name="BtnTabUpload" Grid.Column="2" Click="BtnTabUpload_Click" Padding="12,8" Background="Transparent" Foreground="#94A3B8" BorderThickness="0,0,0,0" BorderBrush="Transparent" FontWeight="SemiBold" FontSize="14" Cursor="Hand">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <TextBlock Text="📤 " FontSize="13"/>
                                 <TextBlock Text="Upload"/>
@@ -199,7 +199,7 @@
                         </Button>
 
                         <!-- Tab 4: Symbol -->
-                        <Button x:Name="BtnTabSymbol" Grid.Column="3" Click="BtnTabSymbol_Click" Padding="12,10" Background="Transparent" Foreground="#94A3B8" BorderThickness="0,0,0,0" BorderBrush="Transparent" FontWeight="SemiBold" FontSize="14" Cursor="Hand">
+                        <Button x:Name="BtnTabSymbol" Grid.Column="3" Click="BtnTabSymbol_Click" Padding="12,8" Background="Transparent" Foreground="#94A3B8" BorderThickness="0,0,0,0" BorderBrush="Transparent" FontWeight="SemiBold" FontSize="14" Cursor="Hand">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <TextBlock Text="✔ " FontSize="13"/>
                                 <TextBlock Text="Symbol"/>
@@ -208,14 +208,14 @@
                     </Grid>
                 </Border>
 
-                <!-- TAB CONTENTS CONTAINER -->
-                <Border Grid.Row="1" Background="#182232" BorderBrush="#334155" BorderThickness="1" CornerRadius="0,0,8,8" Padding="16" Margin="0,0,0,12">
+                <!-- TAB CONTENTS CONTAINER (FIXED 300px HEIGHT - PREVENTS JUMPING) -->
+                <Border Grid.Row="1" Background="#182232" BorderBrush="#334155" BorderThickness="1" CornerRadius="0,0,8,8" Padding="10" Height="300" Margin="0,0,0,10">
                     <Grid>
                         <!-- TAB 1: DRAW -->
                         <Grid x:Name="PnlTabDraw" Visibility="Visible">
                             <StackPanel HorizontalAlignment="Center">
                                 <!-- Draw Bar Controls: Thickness Slider Only -->
-                                <Grid Width="600" Margin="0,0,0,10">
+                                <Grid Width="600" Margin="0,0,0,6">
                                     <!-- Thickness Slider -->
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                         <TextBlock Text="Thickness:" FontSize="12" Foreground="#E2E8F0" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0"/>
@@ -225,27 +225,27 @@
                                 </Grid>
 
                                 <!-- SIGNATURE DRAWING CANVAS -->
-                                <Border BorderBrush="#0EA5E9" BorderThickness="2" CornerRadius="8" Width="600" Height="220" Background="White" ClipToBounds="True">
+                                <Border BorderBrush="#0EA5E9" BorderThickness="2" CornerRadius="8" Width="600" Height="195" Background="White" ClipToBounds="True">
                                     <Grid x:Name="GridDrawCanvasArea">
                                         <InkCanvas x:Name="InkSignCanvas" Background="Transparent" StrokeCollected="InkSignCanvas_StrokeCollected"/>
                                     </Grid>
                                 </Border>
 
                                 <!-- Drawing Action Controls -->
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
-                                    <Button Click="BtnUndoInk_Click" Style="{StaticResource {x:Type Button}}" Padding="12,6" Margin="0,0,8,0" Background="#334155" Foreground="White" BorderThickness="0">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
+                                    <Button Click="BtnUndoInk_Click" Style="{StaticResource {x:Type Button}}" Padding="12,5" Margin="0,0,8,0" Background="#334155" Foreground="White" BorderThickness="0">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="↩ " FontSize="12"/>
                                             <TextBlock Text="Undo"/>
                                         </StackPanel>
                                     </Button>
-                                    <Button Click="BtnClearInk_Click" Style="{StaticResource {x:Type Button}}" Padding="12,6" Margin="0,0,12,0" Background="#334155" Foreground="White" BorderThickness="0">
+                                    <Button Click="BtnClearInk_Click" Style="{StaticResource {x:Type Button}}" Padding="12,5" Margin="0,0,12,0" Background="#334155" Foreground="White" BorderThickness="0">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="🗑 " FontSize="12"/>
                                             <TextBlock Text="Clear"/>
                                         </StackPanel>
                                     </Button>
-                                    <Button Click="BtnSaveSignatureToLibrary_Click" Style="{StaticResource {x:Type Button}}" Padding="14,6" Background="#10B981" Foreground="White" BorderThickness="0" FontWeight="Bold">
+                                    <Button Click="BtnSaveSignatureToLibrary_Click" Style="{StaticResource {x:Type Button}}" Padding="14,5" Background="#10B981" Foreground="White" BorderThickness="0" FontWeight="Bold">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="💾 " FontSize="12"/>
                                             <TextBlock Text="Save to Library"/>
@@ -255,27 +255,27 @@
                             </StackPanel>
                         </Grid>
 
-                        <!-- TAB 2: TYPE -->
+                        <!-- TAB 2: TYPE (OPTIMIZED SPACING - FULLY VISIBLE SAVE BUTTON) -->
                         <Grid x:Name="PnlTabType" Visibility="Collapsed">
                             <StackPanel HorizontalAlignment="Center" Width="600">
-                                <!-- Text Input Box with "Type your signature" Label -->
-                                <TextBlock Text="Type your signature" FontSize="13" FontWeight="SemiBold" Foreground="#E2E8F0" Margin="0,0,0,6"/>
-                                <TextBox x:Name="TxtTypedSignature" Text="Signature Preview" FontSize="15" Padding="10,6" Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155" BorderThickness="1.5" GotFocus="TxtTypedSignature_GotFocus" LostFocus="TxtTypedSignature_LostFocus" TextChanged="TxtTypedSignature_TextChanged" Margin="0,0,0,12"/>
+                                <!-- Text Input Box -->
+                                <TextBlock Text="Type your signature" FontSize="12" FontWeight="SemiBold" Foreground="#E2E8F0" Margin="0,0,0,3"/>
+                                <TextBox x:Name="TxtTypedSignature" Text="Signature Preview" FontSize="13" Padding="8,4" Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155" BorderThickness="1.5" GotFocus="TxtTypedSignature_GotFocus" LostFocus="TxtTypedSignature_LostFocus" TextChanged="TxtTypedSignature_TextChanged" Margin="0,0,0,5"/>
 
-                                <!-- Handwriting Font Pills Selector (Subtitle Text Removed) -->
-                                <WrapPanel x:Name="PnlFontPills" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,12">
+                                <!-- Handwriting Font Pills Selector -->
+                                <WrapPanel x:Name="PnlFontPills" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,5">
                                     <!-- Dynamic Font Pill Buttons -->
                                 </WrapPanel>
 
-                                <!-- Live Signature Text Preview Container -->
-                                <Border x:Name="BdrTypedPreview" BorderBrush="#0EA5E9" BorderThickness="2" CornerRadius="8" Width="600" Height="130" Background="White" ClipToBounds="True" Margin="0,0,0,12">
+                                <!-- Live Signature Text Preview Container (Height 95px) -->
+                                <Border x:Name="BdrTypedPreview" BorderBrush="#0EA5E9" BorderThickness="2" CornerRadius="8" Width="600" Height="95" Background="White" ClipToBounds="True" Margin="0,0,0,6">
                                     <Grid x:Name="GridTypedPreview">
-                                        <TextBlock x:Name="TxtTypedPreview" Text="Signature Preview" FontSize="38" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" TextWrapping="NoWrap"/>
+                                        <TextBlock x:Name="TxtTypedPreview" Text="Signature Preview" FontSize="32" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" TextWrapping="NoWrap"/>
                                     </Grid>
                                 </Border>
 
                                 <!-- Save Typed Signature to Library Button -->
-                                <Button Click="BtnSaveSignatureToLibrary_Click" Style="{StaticResource {x:Type Button}}" Padding="14,6" Background="#10B981" Foreground="White" BorderThickness="0" FontWeight="Bold" HorizontalAlignment="Center">
+                                <Button Click="BtnSaveSignatureToLibrary_Click" Style="{StaticResource {x:Type Button}}" Padding="16,5" Background="#10B981" Foreground="White" BorderThickness="0" FontWeight="Bold" HorizontalAlignment="Center">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="💾 " FontSize="12"/>
                                         <TextBlock Text="Save to Library"/>
@@ -288,30 +288,30 @@
                         <Grid x:Name="PnlTabUpload" Visibility="Collapsed">
                             <StackPanel HorizontalAlignment="Center" Width="600">
                                 <!-- Drag & Drop Box -->
-                                <Border x:Name="BdrUploadDropZone" AllowDrop="True" Drop="BdrUploadDropZone_Drop" DragOver="BdrUploadDropZone_DragOver" BorderBrush="#0EA5E9" BorderThickness="2" CornerRadius="8" Height="180" Background="#0F172A" Cursor="Hand" MouseLeftButtonDown="BdrUploadDropZone_MouseLeftButtonDown" Margin="0,0,0,10">
+                                <Border x:Name="BdrUploadDropZone" AllowDrop="True" Drop="BdrUploadDropZone_Drop" DragOver="BdrUploadDropZone_DragOver" BorderBrush="#0EA5E9" BorderThickness="2" CornerRadius="8" Height="175" Background="#0F172A" Cursor="Hand" MouseLeftButtonDown="BdrUploadDropZone_MouseLeftButtonDown" Margin="0,0,0,8">
                                     <Grid>
                                         <!-- Image Preview (if image loaded) -->
-                                        <Image x:Name="ImgUploadedPreview" Stretch="Uniform" Visibility="Collapsed" Margin="12"/>
+                                        <Image x:Name="ImgUploadedPreview" Stretch="Uniform" Visibility="Collapsed" Margin="10"/>
 
                                         <!-- Upload Instructions -->
                                         <StackPanel x:Name="PnlUploadInstructions" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <TextBlock Text="📤" FontSize="32" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                                            <TextBlock Text="📤" FontSize="28" HorizontalAlignment="Center" Margin="0,0,0,4"/>
                                             <TextBlock Text="Drag &amp; drop signature image here or click to choose" FontSize="13" FontWeight="SemiBold" Foreground="#E2E8F0" HorizontalAlignment="Center"/>
-                                            <TextBlock Text="Supports PNG, JPG, BMP. Auto background transparency." FontSize="11" Foreground="#64748B" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                            <TextBlock Text="Supports PNG, JPG, BMP. Auto background transparency." FontSize="11" Foreground="#64748B" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
 
                                 <!-- Action Buttons: Choose File & Save to Library -->
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <Button Click="BtnLoadImageSignature_Click" Style="{StaticResource {x:Type Button}}" Padding="14,7" Margin="0,0,10,0" Background="#0EA5E9" Foreground="White" BorderThickness="0" FontWeight="Bold">
+                                    <Button Click="BtnLoadImageSignature_Click" Style="{StaticResource {x:Type Button}}" Padding="14,6" Margin="0,0,10,0" Background="#0EA5E9" Foreground="White" BorderThickness="0" FontWeight="Bold">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="📁 " FontSize="13"/>
                                             <TextBlock Text="Choose Image File"/>
                                         </StackPanel>
                                     </Button>
 
-                                    <Button Click="BtnSaveSignatureToLibrary_Click" Style="{StaticResource {x:Type Button}}" Padding="14,7" Background="#10B981" Foreground="White" BorderThickness="0" FontWeight="Bold">
+                                    <Button Click="BtnSaveSignatureToLibrary_Click" Style="{StaticResource {x:Type Button}}" Padding="14,6" Background="#10B981" Foreground="White" BorderThickness="0" FontWeight="Bold">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="💾 " FontSize="12"/>
                                             <TextBlock Text="Save to Library"/>
@@ -321,16 +321,16 @@
                             </StackPanel>
                         </Grid>
 
-                        <!-- TAB 4: SYMBOL (Save to Library Removed) -->
+                        <!-- TAB 4: SYMBOL -->
                         <Grid x:Name="PnlTabSymbol" Visibility="Collapsed">
                             <StackPanel HorizontalAlignment="Center" Width="600">
-                                <TextBlock Text="Select Symbol Stamp:" FontSize="13" FontWeight="SemiBold" Foreground="#E2E8F0" Margin="0,0,0,8"/>
+                                <TextBlock Text="Select Symbol Stamp:" FontSize="13" FontWeight="SemiBold" Foreground="#E2E8F0" Margin="0,0,0,6"/>
                                 
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,14">
-                                    <Button x:Name="BtnSymbolCheck" Click="BtnSymbol_Click" Content="✔  Checkmark (V)" Tag="✔" Padding="14,7" Margin="0,0,8,0" Background="#0EA5E9" Foreground="White" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
-                                    <Button x:Name="BtnSymbolCross" Click="BtnSymbol_Click" Content="✖  Cross (X)" Tag="✖" Padding="14,7" Margin="0,0,8,0" Background="#334155" Foreground="White" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
-                                    <Button x:Name="BtnSymbolStar" Click="BtnSymbol_Click" Content="★  Star" Tag="★" Padding="14,7" Margin="0,0,8,0" Background="#334155" Foreground="White" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
-                                    <Button x:Name="BtnSymbolApproved" Click="BtnSymbol_Click" Content="APPROVED" Tag="APPROVED" Padding="14,7" Background="#334155" Foreground="White" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
+                                    <Button x:Name="BtnSymbolCheck" Click="BtnSymbol_Click" Content="✔  Checkmark (V)" Tag="✔" Padding="14,6" Margin="0,0,8,0" Background="#0EA5E9" Foreground="White" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
+                                    <Button x:Name="BtnSymbolCross" Click="BtnSymbol_Click" Content="✖  Cross (X)" Tag="✖" Padding="14,6" Margin="0,0,8,0" Background="#334155" Foreground="White" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
+                                    <Button x:Name="BtnSymbolStar" Click="BtnSymbol_Click" Content="★  Star" Tag="★" Padding="14,6" Margin="0,0,8,0" Background="#334155" Foreground="White" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
+                                    <Button x:Name="BtnSymbolApproved" Click="BtnSymbol_Click" Content="APPROVED" Tag="APPROVED" Padding="14,6" Background="#334155" Foreground="White" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
                                 </StackPanel>
 
                                 <!-- Symbol Live Preview Container (Black Only) -->
@@ -345,11 +345,11 @@
                 </Border>
 
                 <!-- SAVED SIGNATURES LIBRARY -->
-                <Border Grid.Row="2" Background="#182232" BorderBrush="#334155" BorderThickness="1" CornerRadius="8" Padding="12">
+                <Border Grid.Row="2" Background="#182232" BorderBrush="#334155" BorderThickness="1" CornerRadius="8" Padding="10">
                     <StackPanel>
-                        <TextBlock Text="Saved Signatures Library:" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,0,0,6"/>
+                        <TextBlock Text="Saved Signatures Library:" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,0,0,4"/>
                         
-                        <ListBox x:Name="LstSavedSignatures" Height="85" Background="Transparent" BorderThickness="0" SelectionChanged="LstSavedSignatures_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                        <ListBox x:Name="LstSavedSignatures" Height="70" Background="Transparent" BorderThickness="0" SelectionChanged="LstSavedSignatures_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled">
                             <ListBox.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <StackPanel Orientation="Horizontal"/>
@@ -357,7 +357,7 @@
                             </ListBox.ItemsPanel>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Width="150" Height="68" Background="White" BorderBrush="#0EA5E9" BorderThickness="1.5" CornerRadius="6" Margin="0,0,10,0" Padding="4">
+                                    <Border Width="140" Height="58" Background="White" BorderBrush="#0EA5E9" BorderThickness="1.5" CornerRadius="6" Margin="0,0,10,0" Padding="4">
                                         <Grid>
                                             <Image Source="{Binding Image}" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             <Button Click="BtnDeleteSavedSignature_Click" Style="{StaticResource DangerButtonStyle}" Padding="5,2" HorizontalAlignment="Right" VerticalAlignment="Top" ToolTip="Delete Saved Signature">
@@ -374,7 +374,7 @@
         </Grid>
 
         <!-- WIZARD BOTTOM ACTION BAR -->
-        <Border Grid.Row="2" Margin="0,16,0,0">
+        <Border Grid.Row="2" Margin="0,10,0,0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
