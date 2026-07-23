@@ -47,6 +47,15 @@ namespace pdfMerge
             UpdateUIState();
         }
 
+        protected override void OnClosed(EventArgs e)
+        {
+            base.OnClosed(e);
+            Application.Current.Shutdown();
+
+            // Bypass Environment.Exit(0) DLL detaching deadlocks and forcefully kill the process.
+            System.Diagnostics.Process.GetCurrentProcess().Kill();
+        }
+
         private void Pages_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
         {
             if (e.NewItems != null)
@@ -206,10 +215,15 @@ namespace pdfMerge
                     Pages.Remove(page);
                 }
 
+                _originalPagesSnapshot.RemoveAll(p => p.SourceFilePath.Equals(fileItem.FilePath, StringComparison.OrdinalIgnoreCase));
+
                 Files.Remove(fileItem);
                 ReindexFilesOrder();
                 ReindexSequenceNumbers();
                 UpdateUIState();
+
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
 
                 TxtStatus.Text = $"Removed file '{fileItem.FileName}'";
             }
@@ -295,6 +309,10 @@ namespace pdfMerge
                 Pages.Clear();
                 _originalPagesSnapshot.Clear();
                 UpdateUIState();
+                
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+
                 TxtStatus.Text = "Cleared all files";
             }
         }

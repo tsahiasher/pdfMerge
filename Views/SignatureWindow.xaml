@@ -288,7 +288,7 @@
                         <Grid x:Name="PnlTabUpload" Visibility="Collapsed">
                             <StackPanel HorizontalAlignment="Center" Width="600">
                                 <!-- Drag & Drop Box -->
-                                <Border x:Name="BdrUploadDropZone" AllowDrop="True" Drop="BdrUploadDropZone_Drop" DragOver="BdrUploadDropZone_DragOver" BorderBrush="#0EA5E9" BorderThickness="2" CornerRadius="8" Height="175" Background="#0F172A" Cursor="Hand" MouseLeftButtonDown="BdrUploadDropZone_MouseLeftButtonDown" Margin="0,0,0,8">
+                                <Border x:Name="BdrUploadDropZone" AllowDrop="True" Drop="BdrUploadDropZone_Drop" DragOver="BdrUploadDropZone_DragOver" BorderBrush="#0EA5E9" BorderThickness="2" CornerRadius="8" Height="175" Background="White" Cursor="Hand" MouseLeftButtonDown="BdrUploadDropZone_MouseLeftButtonDown" Margin="0,0,0,8">
                                     <Grid>
                                         <!-- Image Preview (if image loaded) -->
                                         <Image x:Name="ImgUploadedPreview" Stretch="Uniform" Visibility="Collapsed" Margin="10"/>
@@ -296,7 +296,7 @@
                                         <!-- Upload Instructions -->
                                         <StackPanel x:Name="PnlUploadInstructions" HorizontalAlignment="Center" VerticalAlignment="Center">
                                             <TextBlock Text="📤" FontSize="28" HorizontalAlignment="Center" Margin="0,0,0,4"/>
-                                            <TextBlock Text="Drag &amp; drop signature image here or click to choose" FontSize="13" FontWeight="SemiBold" Foreground="#E2E8F0" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="Drag &amp; drop signature image here or click to choose" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" HorizontalAlignment="Center"/>
                                             <TextBlock Text="Supports PNG, JPG, BMP. Auto background transparency." FontSize="11" Foreground="#64748B" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                         </StackPanel>
                                     </Grid>
@@ -355,9 +355,34 @@
                                     <StackPanel Orientation="Horizontal"/>
                                 </ItemsPanelTemplate>
                             </ListBox.ItemsPanel>
+
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="0,0,10,0"/>
+                                    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <Border x:Name="OuterBorder" Background="Transparent" CornerRadius="8" Padding="2">
+                                                    <ContentPresenter />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsSelected" Value="True">
+                                                        <Setter TargetName="OuterBorder" Property="Background" Value="#0EA5E9"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Width="140" Height="58" Background="White" BorderBrush="#0EA5E9" BorderThickness="1.5" CornerRadius="6" Margin="0,0,10,0" Padding="4">
+                                    <Border Width="136" Height="54" Background="White" BorderBrush="#334155" BorderThickness="1" CornerRadius="6" Padding="4">
                                         <Grid>
                                             <Image Source="{Binding Image}" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             <Button Click="BtnDeleteSavedSignature_Click" Style="{StaticResource DangerButtonStyle}" Padding="5,2" HorizontalAlignment="Right" VerticalAlignment="Top" ToolTip="Delete Saved Signature">

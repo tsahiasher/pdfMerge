@@ -34,6 +34,8 @@ namespace pdfMerge.Views
         private FontFamily _selectedFontFamily = new FontFamily("Segoe Script");
         private string _selectedSymbol = "✔";
 
+        private bool _isUpdatingLibrarySelection = false;
+
         public ObservableCollection<SavedSignatureItem> SavedSignatures { get; } = new ObservableCollection<SavedSignatureItem>();
         public AppliedSignature? ResultSignature { get; private set; }
 
@@ -218,6 +220,14 @@ namespace pdfMerge.Views
 
         #region Step 2: Tab Navigation (Draw, Type, Upload, Symbol)
 
+        private void UnselectLibrary()
+        {
+            if (_isUpdatingLibrarySelection || LstSavedSignatures == null) return;
+            _isUpdatingLibrarySelection = true;
+            LstSavedSignatures.UnselectAll();
+            _isUpdatingLibrarySelection = false;
+        }
+
         private void SwitchTab(int tabIndex)
         {
             _activeTabIndex = tabIndex;
@@ -229,10 +239,15 @@ namespace pdfMerge.Views
             SetTabButtonStyle(BtnTabSymbol, tabIndex == 3);
 
             // Show active panel
-            PnlTabDraw.Visibility = tabIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
-            PnlTabType.Visibility = tabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
-            PnlTabUpload.Visibility = tabIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
-            PnlTabSymbol.Visibility = tabIndex == 3 ? Visibility.Visible : Visibility.Collapsed;
+            if (PnlTabDraw != null) PnlTabDraw.Visibility = tabIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (PnlTabType != null) PnlTabType.Visibility = tabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+            if (PnlTabUpload != null) PnlTabUpload.Visibility = tabIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
+            if (PnlTabSymbol != null) PnlTabSymbol.Visibility = tabIndex == 3 ? Visibility.Visible : Visibility.Collapsed;
+
+            if (!_isUpdatingLibrarySelection)
+            {
+                UnselectLibrary();
+            }
         }
 
         private void SetTabButtonStyle(Button btn, bool isActive)
@@ -267,7 +282,7 @@ namespace pdfMerge.Views
         private void InkSignCanvas_StrokeCollected(object sender, InkCanvasStrokeCollectedEventArgs e)
         {
             _loadedImageSignature = null;
-            LstSavedSignatures.UnselectAll();
+            UnselectLibrary();
         }
 
         private void BtnUndoInk_Click(object sender, RoutedEventArgs e)
@@ -276,13 +291,14 @@ namespace pdfMerge.Views
             {
                 InkSignCanvas.Strokes.RemoveAt(InkSignCanvas.Strokes.Count - 1);
             }
+            UnselectLibrary();
         }
 
         private void BtnClearInk_Click(object sender, RoutedEventArgs e)
         {
             InkSignCanvas.Strokes.Clear();
             _loadedImageSignature = null;
-            LstSavedSignatures.UnselectAll();
+            UnselectLibrary();
         }
 
         #endregion
@@ -329,6 +345,7 @@ namespace pdfMerge.Views
 
         private void FontPill_Click(object sender, RoutedEventArgs e)
         {
+            UnselectLibrary();
             if (sender is Button btn && btn.Tag is string fontName)
             {
                 _selectedFontFamily = new FontFamily(fontName);
@@ -365,6 +382,7 @@ namespace pdfMerge.Views
 
         private void TxtTypedSignature_TextChanged(object sender, TextChangedEventArgs e)
         {
+            UnselectLibrary();
             if (TxtTypedPreview != null)
             {
                 TxtTypedPreview.Text = string.IsNullOrWhiteSpace(TxtTypedSignature.Text) ? "Signature Preview" : TxtTypedSignature.Text;
@@ -452,7 +470,7 @@ namespace pdfMerge.Views
                 ImgUploadedPreview.Source = bitmap;
                 ImgUploadedPreview.Visibility = Visibility.Visible;
                 PnlUploadInstructions.Visibility = Visibility.Collapsed;
-                LstSavedSignatures.UnselectAll();
+                UnselectLibrary();
             }
             catch (Exception ex)
             {
@@ -466,6 +484,7 @@ namespace pdfMerge.Views
 
         private void BtnSymbol_Click(object sender, RoutedEventArgs e)
         {
+            UnselectLibrary();
             if (sender is Button btn && btn.Tag is string symbol)
             {
                 _selectedSymbol = symbol;
@@ -539,9 +558,18 @@ namespace pdfMerge.Views
 
         private void LstSavedSignatures_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (_isUpdatingLibrarySelection) return;
+
             if (LstSavedSignatures.SelectedItem is SavedSignatureItem selected)
             {
+                _isUpdatingLibrarySelection = true;
                 _loadedImageSignature = selected.Image;
+                ImgUploadedPreview.Source = selected.Image;
+                ImgUploadedPreview.Visibility = Visibility.Visible;
+                PnlUploadInstructions.Visibility = Visibility.Collapsed;
+
+                SwitchTab(2); // Switch to Upload tab so picked library signature is displayed in the main preview
+                _isUpdatingLibrarySelection = false;
             }
         }
 
@@ -593,7 +621,6 @@ namespace pdfMerge.Views
 
                 case 0: // Draw
                 default:
-                    if (_loadedImageSignature != null) return _loadedImageSignature;
                     return RenderVisualToBitmap(GridDrawCanvasArea, 600, 220);
             }
         }
