@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using pdfMerge.Models;
@@ -47,7 +48,7 @@ namespace pdfMerge.Services
         /// <summary>
         /// Gets total page count of a PDF or Image file.
         /// </summary>
-        public static async Task<int> GetPageCountAsync(string filePath)
+        public static async Task<int> GetPageCountAsync(string filePath, CancellationToken token = default)
         {
             string fullPath = Path.GetFullPath(filePath);
 
@@ -56,12 +57,16 @@ namespace pdfMerge.Services
                 return 1; // Images are loaded as 1-page documents
             }
 
+            token.ThrowIfCancellationRequested();
+
             try
             {
                 StorageFile file = await StorageFile.GetFileFromPathAsync(fullPath);
-                WinPdfDocument pdfDoc = await WinPdfDocument.LoadFromFileAsync(file);
+                var pdfDoc = await WinPdfDocument.LoadFromFileAsync(file);
+                token.ThrowIfCancellationRequested();
                 return (int)pdfDoc.PageCount;
             }
+            catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"WinRT PDF load failed for {fullPath}, falling back to PdfSharp: {ex.Message}");
@@ -74,14 +79,16 @@ namespace pdfMerge.Services
         /// <summary>
         /// Renders a specific page of a PDF or Image as a WPF BitmapImage thumbnail.
         /// </summary>
-        public static async Task<BitmapSource?> RenderPageThumbnailAsync(string filePath, int pageIndex, uint targetWidth = 350)
+        public static async Task<BitmapSource?> RenderPageThumbnailAsync(string filePath, int pageIndex, uint targetWidth = 350, CancellationToken token = default)
         {
             string fullPath = Path.GetFullPath(filePath);
 
             if (IsSupportedImageFile(fullPath))
             {
+                token.ThrowIfCancellationRequested();
                 return await Task.Run(() =>
                 {
+                    token.ThrowIfCancellationRequested();
                     try
                     {
                         using var stream = File.OpenRead(fullPath);
@@ -94,21 +101,26 @@ namespace pdfMerge.Services
                         bitmap.Freeze();
                         return (BitmapSource)bitmap;
                     }
+                    catch (OperationCanceledException) { throw; }
                     catch (Exception ex)
                     {
                         System.Diagnostics.Debug.WriteLine($"Error loading image thumbnail for {fullPath}: {ex.Message}");
                         return null;
                     }
-                });
+                }, token);
             }
+
+            token.ThrowIfCancellationRequested();
 
             try
             {
                 StorageFile file = await StorageFile.GetFileFromPathAsync(fullPath);
-                WinPdfDocument pdfDoc = await WinPdfDocument.LoadFromFileAsync(file);
+                var pdfDoc = await WinPdfDocument.LoadFromFileAsync(file);
 
                 if (pageIndex < 0 || pageIndex >= pdfDoc.PageCount)
                     return null;
+
+                token.ThrowIfCancellationRequested();
 
                 using WinPdfPage page = pdfDoc.GetPage((uint)pageIndex);
 
@@ -120,6 +132,8 @@ namespace pdfMerge.Services
 
                 await page.RenderToStreamAsync(randomAccessStream, options);
 
+                token.ThrowIfCancellationRequested();
+
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.StreamSource = randomAccessStream.AsStream();
@@ -129,6 +143,7 @@ namespace pdfMerge.Services
 
                 return bitmap;
             }
+            catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error rendering PDF thumbnail for {fullPath} page {pageIndex}: {ex.Message}");

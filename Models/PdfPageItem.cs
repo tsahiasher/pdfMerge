@@ -13,7 +13,8 @@ namespace pdfMerge.Models
         private int _originalPageIndex;
         private int _displayPageNumber;
         private int _rotation;
-        private BitmapSource? _thumbnail;
+        private BitmapSource? _originalThumbnail;
+        private BitmapSource? _cachedDisplayThumbnail;
         private bool _isSelected;
         private bool _isLoading = true;
         private bool _isBeingDragged;
@@ -74,10 +75,39 @@ namespace pdfMerge.Models
 
         public string RotationText => Rotation == 0 ? "0°" : $"{Rotation}°";
 
+        /// <summary>
+        /// The original, unmodified page thumbnail (no signature overlay).
+        /// </summary>
+        public BitmapSource? OriginalThumbnail
+        {
+            get => _originalThumbnail;
+            set
+            {
+                if (SetProperty(ref _originalThumbnail, value))
+                {
+                    _cachedDisplayThumbnail = null; // Invalidate display cache
+                    OnPropertyChanged(nameof(Thumbnail));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Display thumbnail: composites signature overlay onto OriginalThumbnail if present.
+        /// XAML binds to this property. Do not set directly — set OriginalThumbnail instead.
+        /// </summary>
         public BitmapSource? Thumbnail
         {
-            get => _thumbnail;
-            set => SetProperty(ref _thumbnail, value);
+            get
+            {
+                if (_originalThumbnail == null) return null;
+                if (_pageSignature == null) return _originalThumbnail;
+
+                // Return cached composite if available
+                if (_cachedDisplayThumbnail != null) return _cachedDisplayThumbnail;
+
+                _cachedDisplayThumbnail = BitmapUtilities.RenderSignatureOverlayOnThumbnail(_originalThumbnail, _pageSignature);
+                return _cachedDisplayThumbnail;
+            }
         }
 
         public bool IsSelected
@@ -101,7 +131,14 @@ namespace pdfMerge.Models
         public AppliedSignature? PageSignature
         {
             get => _pageSignature;
-            set => SetProperty(ref _pageSignature, value);
+            set
+            {
+                if (SetProperty(ref _pageSignature, value))
+                {
+                    _cachedDisplayThumbnail = null; // Invalidate display cache
+                    OnPropertyChanged(nameof(Thumbnail));
+                }
+            }
         }
 
         public double CardWidth
@@ -147,7 +184,7 @@ namespace pdfMerge.Models
                 OriginalPageIndex = this.OriginalPageIndex,
                 DisplayPageNumber = this.DisplayPageNumber,
                 Rotation = this.Rotation,
-                Thumbnail = this.Thumbnail,
+                OriginalThumbnail = this.OriginalThumbnail,
                 IsSelected = false,
                 IsLoading = false,
                 IsBeingDragged = false,

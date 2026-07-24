@@ -14,16 +14,17 @@ using pdfMerge.Services;
 
 namespace pdfMerge.Views
 {
-    // PrintQueueItem moved to Models/PrintQueueItem.cs (Rec #3)
-
     public partial class PrintPreviewWindow : Window
     {
         private readonly List<PdfPageItem> _allPages;
 
         private List<PdfPageItem> _pagesToPrint = new List<PdfPageItem>();
-        private List<BitmapSource> _renderedPageBitmaps = new List<BitmapSource>();
+        private readonly Dictionary<int, BitmapSource> _previewCache = new Dictionary<int, BitmapSource>();
+        private const int MaxCacheSize = 5;
+
         private int _currentPreviewIndex = 0;
         private CancellationTokenSource? _renderCts;
+        private int _renderVersion = 0; // #7: Prevent stale preview results
 
         public PrintPreviewWindow(List<PdfPageItem> allPages)
         {
@@ -43,41 +44,63 @@ namespace pdfMerge.Views
                 }
             }
 
-            EvaluatePrintRange();
+            // #6: Move async work from constructor to Loaded event
+            Loaded += async (_, _) => await EvaluatePrintRangeAsync();
         }
 
+        // #5: Dispose CTS and cancel renders on window close
+        protected override void OnClosed(EventArgs e)
+        {
+            _renderCts?.Cancel();
+            _renderCts?.Dispose();
+            _renderCts = null;
+            _previewCache.Clear();
+            base.OnClosed(e);
+        }
+
+        // #3: Dispose LocalPrintServer after enumeration, store only printer names
         private void PopulatePrinters()
         {
             try
             {
-                var printServer = new LocalPrintServer();
-                var queues = printServer.GetPrintQueues(new[] { EnumeratedPrintQueueTypes.Local, EnumeratedPrintQueueTypes.Connections });
+                using var printServer = new LocalPrintServer();
+                using var queues = printServer.GetPrintQueues(new[] { EnumeratedPrintQueueTypes.Local, EnumeratedPrintQueueTypes.Connections });
 
                 var queueItems = new List<PrintQueueItem>();
                 string defaultQueueName = string.Empty;
 
                 try
                 {
-                    defaultQueueName = printServer.DefaultPrintQueue.Name;
+                    using var defaultQueue = printServer.DefaultPrintQueue;
+                    if (defaultQueue != null)
+                    {
+                        defaultQueueName = defaultQueue.Name;
+                    }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error getting default printer: {ex.Message}");
+                }
 
                 PrintQueueItem? defaultItem = null;
 
                 foreach (var q in queues)
                 {
-                    var item = new PrintQueueItem { Name = q.FullName, Queue = q };
+                    var item = new PrintQueueItem { Name = q.Name, FullName = q.FullName };
                     queueItems.Add(item);
 
                     if (!string.IsNullOrEmpty(defaultQueueName) && q.Name.Equals(defaultQueueName, StringComparison.OrdinalIgnoreCase))
                     {
                         defaultItem = item;
                     }
+
+                    q.Dispose();
                 }
 
                 if (CmbPrinters != null)
                 {
                     CmbPrinters.ItemsSource = queueItems;
+                    CmbPrinters.DisplayMemberPath = "FullName";
                     if (defaultItem != null)
                     {
                         CmbPrinters.SelectedItem = defaultItem;
@@ -133,7 +156,7 @@ namespace pdfMerge.Views
         {
             if (_allPages != null)
             {
-                EvaluatePrintRange();
+                _ = EvaluatePrintRangeAsync();
             }
         }
 
@@ -141,7 +164,7 @@ namespace pdfMerge.Views
         {
             if (RdoRangeCustom != null && RdoRangeCustom.IsChecked == true && _allPages != null)
             {
-                EvaluatePrintRange();
+                _ = EvaluatePrintRangeAsync();
             }
         }
 
@@ -155,7 +178,7 @@ namespace pdfMerge.Views
             UpdateLivePreviewDisplay();
         }
 
-        private async void EvaluatePrintRange()
+        private async Task EvaluatePrintRangeAsync()
         {
             if (_allPages == null || _allPages.Count == 0) return;
 
@@ -171,6 +194,20 @@ namespace pdfMerge.Views
                 else if (RdoRangeCustom != null && RdoRangeCustom.IsChecked == true && TxtCustomRange != null)
                 {
                     targetPages = ParseCustomPageRange(TxtCustomRange.Text, _allPages);
+
+                    // #15: If non-empty input produced zero valid pages, show validation error
+                    if (targetPages.Count == 0 && !string.IsNullOrWhiteSpace(TxtCustomRange.Text))
+                    {
+                        _pagesToPrint = new List<PdfPageItem>();
+                        _previewCache.Clear();
+                        if (TxtPreviewRangeInfo != null)
+                        {
+                            TxtPreviewRangeInfo.Text = "Invalid range";
+                        }
+                        if (BtnPrintNow != null) BtnPrintNow.IsEnabled = false;
+                        UpdateLivePreviewDisplay();
+                        return;
+                    }
                 }
                 else
                 {
@@ -178,25 +215,32 @@ namespace pdfMerge.Views
                 }
 
                 _pagesToPrint = targetPages.ToList();
+                _previewCache.Clear();
 
                 if (TxtPreviewRangeInfo != null)
                 {
                     TxtPreviewRangeInfo.Text = $"{_pagesToPrint.Count} Page{(_pagesToPrint.Count == 1 ? "" : "s")} Selected";
                 }
+                if (BtnPrintNow != null) BtnPrintNow.IsEnabled = _pagesToPrint.Count > 0;
 
                 _currentPreviewIndex = 0;
-                await RenderAllPreviewPagesAsync(_pagesToPrint.ToList());
+                await RenderCurrentPreviewPageAsync();
             }
+            catch (OperationCanceledException) { /* expected */ }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error evaluating print range: {ex.Message}");
             }
         }
 
+        // #15: Improved page-range parsing with O(1) lookup and HashSet dedup
         private List<PdfPageItem> ParseCustomPageRange(string rangeText, List<PdfPageItem> allPages)
         {
-            var result = new List<PdfPageItem>();
             if (string.IsNullOrWhiteSpace(rangeText)) return allPages.ToList();
+
+            var lookup = allPages.ToDictionary(p => p.DisplayPageNumber, p => p);
+            var seen = new HashSet<PdfPageItem>();
+            var result = new List<PdfPageItem>();
 
             try
             {
@@ -211,8 +255,7 @@ namespace pdfMerge.Views
                         {
                             for (int i = Math.Max(1, start); i <= Math.Min(allPages.Count, end); i++)
                             {
-                                var item = allPages.FirstOrDefault(p => p.DisplayPageNumber == i);
-                                if (item != null && !result.Contains(item))
+                                if (lookup.TryGetValue(i, out var item) && seen.Add(item))
                                 {
                                     result.Add(item);
                                 }
@@ -221,8 +264,7 @@ namespace pdfMerge.Views
                     }
                     else if (int.TryParse(trimmed, out int pageNum))
                     {
-                        var item = allPages.FirstOrDefault(p => p.DisplayPageNumber == pageNum);
-                        if (item != null && !result.Contains(item))
+                        if (lookup.TryGetValue(pageNum, out var item) && seen.Add(item))
                         {
                             result.Add(item);
                         }
@@ -234,59 +276,96 @@ namespace pdfMerge.Views
                 System.Diagnostics.Debug.WriteLine($"Error parsing custom page range '{rangeText}': {ex.Message}");
             }
 
-            return result.Count > 0 ? result : allPages.ToList();
+            return result;
         }
 
-        private async Task RenderAllPreviewPagesAsync(List<PdfPageItem> pagesToRender)
+        private async Task RenderCurrentPreviewPageAsync()
         {
+            if (_pagesToPrint.Count == 0)
+            {
+                UpdateLivePreviewDisplay();
+                return;
+            }
+
+            if (_currentPreviewIndex < 0 || _currentPreviewIndex >= _pagesToPrint.Count)
+            {
+                _currentPreviewIndex = 0;
+            }
+
+            // Check bounded preview cache first
+            if (_previewCache.TryGetValue(_currentPreviewIndex, out _))
+            {
+                UpdateLivePreviewDisplay();
+                PrefetchAdjacentPages(_currentPreviewIndex);
+                return;
+            }
+
             _renderCts?.Cancel();
+            _renderCts?.Dispose();
             _renderCts = new CancellationTokenSource();
             var token = _renderCts.Token;
 
+            int myVersion = ++_renderVersion;
+
             if (PnlPreviewLoading != null) PnlPreviewLoading.Visibility = Visibility.Visible;
 
-            var newBitmaps = new List<BitmapSource>();
-
-            foreach (var pageItem in pagesToRender)
+            try
             {
-                if (token.IsCancellationRequested) return;
+                var pageItem = _pagesToPrint[_currentPreviewIndex];
+                BitmapSource? pageImage = await PageRenderService.RenderCompositePageAsync(pageItem, 1600, isMonochrome: false, token: token);
 
-                BitmapSource? pageImage = await PdfService.RenderPageThumbnailAsync(pageItem.SourceFilePath, pageItem.OriginalPageIndex, 1600);
-                if (pageImage == null && pageItem.Thumbnail != null)
+                if (pageImage != null && myVersion == _renderVersion && !token.IsCancellationRequested)
                 {
-                    pageImage = pageItem.Thumbnail;
-                }
-
-                if (token.IsCancellationRequested) return;
-
-                if (pageImage != null)
-                {
-                    if (pageItem.Rotation != 0)
-                    {
-                        pageImage = BitmapUtilities.RotateBitmap(pageImage, pageItem.Rotation);
-                    }
-
-                    if (pageItem.PageSignature != null)
-                    {
-                        pageImage = BitmapUtilities.RenderSignatureOverlayOnThumbnail(pageImage, pageItem.PageSignature);
-                    }
-
-                    newBitmaps.Add(pageImage);
+                    _previewCache[_currentPreviewIndex] = pageImage;
+                    TrimCache(_currentPreviewIndex);
+                    UpdateLivePreviewDisplay();
+                    PrefetchAdjacentPages(_currentPreviewIndex);
                 }
             }
-
-            if (token.IsCancellationRequested) return;
-
-            _renderedPageBitmaps = newBitmaps;
-
-            if (PnlPreviewLoading != null) PnlPreviewLoading.Visibility = Visibility.Collapsed;
-
-            if (_currentPreviewIndex >= _renderedPageBitmaps.Count)
+            catch (OperationCanceledException) { /* expected on fast navigate */ }
+            catch (Exception ex)
             {
-                _currentPreviewIndex = Math.Max(0, _renderedPageBitmaps.Count - 1);
+                System.Diagnostics.Debug.WriteLine($"Error rendering preview page: {ex.Message}");
             }
+            finally
+            {
+                if (myVersion == _renderVersion && PnlPreviewLoading != null)
+                {
+                    PnlPreviewLoading.Visibility = Visibility.Collapsed;
+                }
+            }
+        }
 
-            UpdateLivePreviewDisplay();
+        private async void PrefetchAdjacentPages(int currentIndex)
+        {
+            int[] targets = new[] { currentIndex + 1, currentIndex - 1 };
+            foreach (int idx in targets)
+            {
+                if (idx >= 0 && idx < _pagesToPrint.Count && !_previewCache.ContainsKey(idx))
+                {
+                    try
+                    {
+                        var item = _pagesToPrint[idx];
+                        var bmp = await PageRenderService.RenderCompositePageAsync(item, 1600, isMonochrome: false);
+
+                        if (bmp != null)
+                        {
+                            _previewCache[idx] = bmp;
+                            TrimCache(currentIndex);
+                        }
+                    }
+                    catch { }
+                }
+            }
+        }
+
+        private void TrimCache(int currentIndex)
+        {
+            while (_previewCache.Count > MaxCacheSize)
+            {
+                int farthestKey = _previewCache.Keys.OrderByDescending(k => Math.Abs(k - currentIndex)).First();
+                _previewCache.Remove(farthestKey);
+            }
         }
 
         private void UpdateLivePreviewDisplay()
@@ -296,7 +375,7 @@ namespace pdfMerge.Views
                 return;
             }
 
-            if (_renderedPageBitmaps == null || _renderedPageBitmaps.Count == 0)
+            if (_pagesToPrint == null || _pagesToPrint.Count == 0)
             {
                 ImgLivePagePreview.Source = null;
                 TxtPageNavigation.Text = "Page 0 of 0";
@@ -305,23 +384,24 @@ namespace pdfMerge.Views
                 return;
             }
 
-            if (_currentPreviewIndex < 0 || _currentPreviewIndex >= _renderedPageBitmaps.Count)
+            if (_currentPreviewIndex < 0 || _currentPreviewIndex >= _pagesToPrint.Count)
             {
                 _currentPreviewIndex = 0;
             }
 
-            TxtPageNavigation.Text = $"Page {_currentPreviewIndex + 1} of {_renderedPageBitmaps.Count}";
+            TxtPageNavigation.Text = $"Page {_currentPreviewIndex + 1} of {_pagesToPrint.Count}";
             BtnPrevPage.IsEnabled = _currentPreviewIndex > 0;
-            BtnNextPage.IsEnabled = _currentPreviewIndex < _renderedPageBitmaps.Count - 1;
+            BtnNextPage.IsEnabled = _currentPreviewIndex < _pagesToPrint.Count - 1;
 
-            BitmapSource currentBitmap = _renderedPageBitmaps[_currentPreviewIndex];
-
-            if (RdoMonochrome != null && RdoMonochrome.IsChecked == true)
+            if (_previewCache.TryGetValue(_currentPreviewIndex, out BitmapSource? currentBitmap) && currentBitmap != null)
             {
-                currentBitmap = BitmapUtilities.ConvertToGrayscale(currentBitmap);
-            }
+                if (RdoMonochrome != null && RdoMonochrome.IsChecked == true)
+                {
+                    currentBitmap = BitmapUtilities.ConvertToGrayscale(currentBitmap);
+                }
 
-            ImgLivePagePreview.Source = currentBitmap;
+                ImgLivePagePreview.Source = currentBitmap;
+            }
         }
 
         private void BtnPrevPage_Click(object sender, RoutedEventArgs e)
@@ -329,24 +409,22 @@ namespace pdfMerge.Views
             if (_currentPreviewIndex > 0)
             {
                 _currentPreviewIndex--;
-                UpdateLivePreviewDisplay();
+                _ = RenderCurrentPreviewPageAsync();
             }
         }
 
         private void BtnNextPage_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentPreviewIndex < _renderedPageBitmaps.Count - 1)
+            if (_currentPreviewIndex < _pagesToPrint.Count - 1)
             {
                 _currentPreviewIndex++;
-                UpdateLivePreviewDisplay();
+                _ = RenderCurrentPreviewPageAsync();
             }
         }
 
-        // RotateBitmap, ConvertToGrayscale, RenderSignatureOverlayOnThumbnail moved to Helpers/BitmapUtilities.cs (Rec #1)
-
         private void BtnPrintNow_Click(object sender, RoutedEventArgs e)
         {
-            if (_renderedPageBitmaps.Count == 0)
+            if (_pagesToPrint.Count == 0)
             {
                 MessageBox.Show(this, "No valid pages available to print.", "Print Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -356,9 +434,10 @@ namespace pdfMerge.Views
             {
                 var printDialog = new PrintDialog();
 
-                if (CmbPrinters != null && CmbPrinters.SelectedItem is PrintQueueItem selectedItem && selectedItem.Queue != null)
+                if (CmbPrinters != null && CmbPrinters.SelectedItem is PrintQueueItem selectedItem && !string.IsNullOrEmpty(selectedItem.FullName))
                 {
-                    printDialog.PrintQueue = selectedItem.Queue;
+                    using var printServer = new LocalPrintServer();
+                    printDialog.PrintQueue = printServer.GetPrintQueue(selectedItem.FullName);
                 }
 
                 PrintTicket ticket = printDialog.PrintTicket ?? new PrintTicket();
@@ -368,10 +447,8 @@ namespace pdfMerge.Views
                     ticket.CopyCount = copyCount;
                 }
 
-                if (RdoMonochrome != null)
-                {
-                    ticket.OutputColor = RdoMonochrome.IsChecked == true ? OutputColor.Grayscale : OutputColor.Color;
-                }
+                bool isMonochrome = RdoMonochrome != null && RdoMonochrome.IsChecked == true;
+                ticket.OutputColor = isMonochrome ? OutputColor.Grayscale : OutputColor.Color;
 
                 if (CmbDuplex != null)
                 {
@@ -391,14 +468,13 @@ namespace pdfMerge.Views
 
                 printDialog.PrintTicket = ticket;
 
-                var finalBitmaps = _renderedPageBitmaps.Select(b => (RdoMonochrome != null && RdoMonochrome.IsChecked == true) ? BitmapUtilities.ConvertToGrayscale(b) : b).ToList();
                 Size printArea = new Size(printDialog.PrintableAreaWidth > 0 ? printDialog.PrintableAreaWidth : 792, printDialog.PrintableAreaHeight > 0 ? printDialog.PrintableAreaHeight : 1122);
 
-                var paginator = new PdfDocumentPaginator(finalBitmaps, printArea);
+                var paginator = new PdfDocumentPaginator(_pagesToPrint, printArea, isMonochrome);
 
                 printDialog.PrintDocument(paginator, "PDF Merge Print Job");
 
-                MessageBox.Show(this, $"Document sent to printer '{printDialog.PrintQueue.Name}' successfully!", "Print Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(this, $"Document sent to printer successfully!", "Print Complete", MessageBoxButton.OK, MessageBoxImage.Information);
                 DialogResult = true;
                 Close();
             }
@@ -410,6 +486,7 @@ namespace pdfMerge.Views
 
         private void BtnCancel_Click(object sender, RoutedEventArgs e)
         {
+            _renderCts?.Cancel();
             DialogResult = false;
             Close();
         }

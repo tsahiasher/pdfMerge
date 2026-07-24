@@ -30,8 +30,8 @@ namespace pdfMerge
         private Point _marqueeStartPoint;
         private bool _isSelectingWithMarquee;
 
-        // Snapshot of original pages state for Revert All feature
-        private List<PdfPageItem> _originalPagesSnapshot = new List<PdfPageItem>();
+        // Snapshot of original pages state for Revert All feature (Requirement 1)
+        private List<PageSnapshotState> _originalPagesSnapshot = new List<PageSnapshotState>();
         private List<PdfPageItem>? _currentDraggedGroup;
 
         public ObservableCollection<PdfFileItem> Files { get; } = new ObservableCollection<PdfFileItem>();
@@ -52,6 +52,17 @@ namespace pdfMerge
         protected override void OnClosed(EventArgs e)
         {
             _loadCts?.Cancel();
+            _loadCts?.Dispose();
+            _loadCts = null;
+
+            Pages.CollectionChanged -= Pages_CollectionChanged;
+            foreach (var item in Pages)
+            {
+                item.PropertyChanged -= PageItem_PropertyChanged;
+            }
+            Pages.Clear();
+            Files.Clear();
+
             base.OnClosed(e);
             Application.Current.Shutdown();
 
@@ -149,26 +160,36 @@ namespace pdfMerge
 
         private async Task AddFilesAsync(IEnumerable<string> filePaths)
         {
+            var files = filePaths
+                .Select(Path.GetFullPath)
+                .Where(PdfService.IsSupportedFile)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (files.Count == 0) return;
+
+            // Cancel and dispose previous loading CTS
             _loadCts?.Cancel();
+            _loadCts?.Dispose();
             _loadCts = new CancellationTokenSource();
             var token = _loadCts.Token;
 
-            SetLoadingState(true, "Processing files...");
+            SetLoadingState(true, "Reading file information...");
 
             try
             {
-                var newPagesList = new List<PdfPageItem>();
+                var newlyAddedPages = new List<PdfPageItem>();
 
-                foreach (var filePath in filePaths)
+                foreach (var filePath in files)
                 {
-                    if (token.IsCancellationRequested) break;
+                    token.ThrowIfCancellationRequested();
 
                     if (Files.Any(f => f.FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase)))
                     {
                         continue;
                     }
 
-                    int pageCount = await PdfService.GetPageCountAsync(filePath);
+                    int pageCount = await PdfService.GetPageCountAsync(filePath, token);
 
                     var fileItem = new PdfFileItem
                     {
@@ -181,45 +202,95 @@ namespace pdfMerge
 
                     for (int pageIdx = 0; pageIdx < pageCount; pageIdx++)
                     {
-                        if (token.IsCancellationRequested) break;
-
-                        BitmapSource? thumb = await PdfService.RenderPageThumbnailAsync(filePath, pageIdx, 350);
-
                         var pageItem = new PdfPageItem
                         {
                             SourceFilePath = filePath,
                             OriginalPageIndex = pageIdx,
-                            DisplayPageNumber = Pages.Count + newPagesList.Count + 1,
-                            Thumbnail = thumb
+                            DisplayPageNumber = Pages.Count + 1,
+                            IsLoading = true,
+                            OriginalThumbnail = null
                         };
 
                         ApplyZoomDimensionsToItem(pageItem, (int)SldZoom.Value);
-                        newPagesList.Add(pageItem);
+                        Pages.Add(pageItem);
+                        _originalPagesSnapshot.Add(new PageSnapshotState
+                        {
+                            SourceFilePath = filePath,
+                            OriginalPageIndex = pageIdx,
+                            OriginalDisplayPageNumber = pageItem.DisplayPageNumber,
+                            InitialRotation = 0,
+                            InitialSignature = null
+                        });
+                        newlyAddedPages.Add(pageItem);
                     }
                 }
 
-                if (!token.IsCancellationRequested)
-                {
-                    foreach (var page in newPagesList)
-                    {
-                        Pages.Add(page);
-                        _originalPagesSnapshot.Add(page.CloneSnapshot());
-                    }
+                PageReorderService.ReindexSequenceNumbers(Pages);
+                UpdateUIState();
+                SetLoadingState(false, $"Added {newlyAddedPages.Count} page(s). Rendering thumbnails...");
 
-                    ReindexSequenceNumbers();
-                    UpdateUIState();
-
-                    SetLoadingState(false, $"Loaded {newPagesList.Count} page(s) from {filePaths.Count()} file(s)");
-                }
+                // Asynchronously render thumbnails in background with bounded concurrency (Priority 5)
+                _ = LoadThumbnailsInBackgroundAsync(newlyAddedPages, token);
+            }
+            catch (OperationCanceledException)
+            {
+                SetLoadingState(false, "Loading cancelled");
             }
             catch (Exception ex)
             {
-                if (!token.IsCancellationRequested)
-                {
-                    MessageBox.Show(this, $"Error loading files: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    SetLoadingState(false, "Failed to load files");
-                }
+                MessageBox.Show(this, $"Error loading files: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                SetLoadingState(false, "Failed to load files");
             }
+        }
+
+        private async Task LoadThumbnailsInBackgroundAsync(List<PdfPageItem> pageItems, CancellationToken token)
+        {
+            using var semaphore = new SemaphoreSlim(3); // Limit to 3 concurrent renders
+            var tasks = new List<Task>();
+
+            foreach (var item in pageItems)
+            {
+                if (token.IsCancellationRequested) break;
+
+                tasks.Add(Task.Run(async () =>
+                {
+                    await semaphore.WaitAsync(token);
+                    try
+                    {
+                        if (token.IsCancellationRequested) return;
+
+                        BitmapSource? thumb = await PdfService.RenderPageThumbnailAsync(item.SourceFilePath, item.OriginalPageIndex, 350, token);
+                        if (thumb != null && !token.IsCancellationRequested)
+                        {
+                            Dispatcher.Invoke(() =>
+                            {
+                                item.OriginalThumbnail = thumb;
+                                item.IsLoading = false;
+                            });
+                        }
+                        else
+                        {
+                            Dispatcher.Invoke(() => item.IsLoading = false);
+                        }
+                    }
+                    catch (OperationCanceledException) { }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error background rendering thumbnail for {item.SourceFileName}: {ex.Message}");
+                        Dispatcher.Invoke(() => item.IsLoading = false);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                }, token));
+            }
+
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch { }
         }
 
         private void BtnRemoveFile_Click(object sender, RoutedEventArgs e)
@@ -235,8 +306,8 @@ namespace pdfMerge
                 _originalPagesSnapshot.RemoveAll(p => p.SourceFilePath.Equals(fileItem.FilePath, StringComparison.OrdinalIgnoreCase));
 
                 Files.Remove(fileItem);
-                ReindexFilesOrder();
-                ReindexSequenceNumbers();
+                PageReorderService.ReindexFilesOrder(Files);
+                PageReorderService.ReindexSequenceNumbers(Pages);
                 UpdateUIState();
 
                 // GC.Collect/WaitForPendingFinalizers removed (Rec #10) — the runtime handles collection automatically
@@ -255,8 +326,8 @@ namespace pdfMerge
                     if (!ConfirmReorderFilesIfPagesCustomized()) return;
 
                     Files.Move(index, index - 1);
-                    ReindexFilesOrder();
-                    RebuildPagesFromFilesOrder();
+                    PageReorderService.ReindexFilesOrder(Files);
+                    PageReorderService.RebuildPagesFromFilesOrder(Pages, Files);
                 }
             }
         }
@@ -271,37 +342,15 @@ namespace pdfMerge
                     if (!ConfirmReorderFilesIfPagesCustomized()) return;
 
                     Files.Move(index, index + 1);
-                    ReindexFilesOrder();
-                    RebuildPagesFromFilesOrder();
+                    PageReorderService.ReindexFilesOrder(Files);
+                    PageReorderService.RebuildPagesFromFilesOrder(Pages, Files);
                 }
             }
-        }
-
-        private bool HasCustomPageOrder()
-        {
-            if (Pages.Count <= 1) return false;
-
-            var fileOrderDict = Files.Select((f, idx) => new { f.FilePath, idx })
-                                     .ToDictionary(x => x.FilePath, x => x.idx, StringComparer.OrdinalIgnoreCase);
-
-            var expectedOrder = Pages.OrderBy(p => fileOrderDict.TryGetValue(p.SourceFilePath, out int order) ? order : int.MaxValue)
-                                     .ThenBy(p => p.OriginalPageIndex)
-                                     .ToList();
-
-            for (int i = 0; i < Pages.Count; i++)
-            {
-                if (Pages[i] != expectedOrder[i])
-                {
-                    return true;
-                }
-            }
-
-            return false;
         }
 
         private bool ConfirmReorderFilesIfPagesCustomized()
         {
-            if (HasCustomPageOrder())
+            if (PageReorderService.HasCustomPageOrder(Pages, Files))
             {
                 var result = MessageBox.Show(
                     this,
@@ -337,16 +386,62 @@ namespace pdfMerge
 
             if (MessageBox.Show(this, "Revert all changes and reload original files?", "Revert All Changes", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
-                Pages.Clear();
-                foreach (var snap in _originalPagesSnapshot)
+                // Gather existing valid thumbnails from current pages in memory
+                var existingThumbnails = new Dictionary<(string FilePath, int PageIndex), BitmapSource>();
+                foreach (var page in Pages)
                 {
-                    var restored = snap.CloneSnapshot();
-                    ApplyZoomDimensionsToItem(restored, (int)SldZoom.Value);
-                    Pages.Add(restored);
+                    if (page.OriginalThumbnail != null)
+                    {
+                        var key = (page.SourceFilePath.ToLowerInvariant(), page.OriginalPageIndex);
+                        if (!existingThumbnails.ContainsKey(key))
+                        {
+                            existingThumbnails[key] = page.OriginalThumbnail;
+                        }
+                    }
                 }
 
-                ReindexSequenceNumbers();
+                Pages.Clear();
+                var pagesNeedingThumbnails = new List<PdfPageItem>();
+
+                foreach (var snap in _originalPagesSnapshot)
+                {
+                    var key = (snap.SourceFilePath.ToLowerInvariant(), snap.OriginalPageIndex);
+                    existingThumbnails.TryGetValue(key, out var existingThumb);
+
+                    var restored = new PdfPageItem
+                    {
+                        SourceFilePath = snap.SourceFilePath,
+                        OriginalPageIndex = snap.OriginalPageIndex,
+                        DisplayPageNumber = snap.OriginalDisplayPageNumber,
+                        Rotation = snap.InitialRotation,
+                        PageSignature = snap.InitialSignature?.Clone(),
+                        IsSelected = false,
+                        IsBeingDragged = false,
+                        OriginalThumbnail = existingThumb,
+                        IsLoading = existingThumb == null
+                    };
+
+                    ApplyZoomDimensionsToItem(restored, (int)SldZoom.Value);
+                    Pages.Add(restored);
+
+                    if (existingThumb == null)
+                    {
+                        pagesNeedingThumbnails.Add(restored);
+                    }
+                }
+
+                PageReorderService.ReindexSequenceNumbers(Pages);
                 UpdateUIState();
+
+                // If any restored page needs a thumbnail, asynchronously load in background
+                if (pagesNeedingThumbnails.Count > 0)
+                {
+                    _loadCts?.Cancel();
+                    _loadCts?.Dispose();
+                    _loadCts = new CancellationTokenSource();
+                    _ = LoadThumbnailsInBackgroundAsync(pagesNeedingThumbnails, _loadCts.Token);
+                }
+
                 TxtStatus.Text = "Reverted all changes to original files";
             }
         }
@@ -603,7 +698,7 @@ namespace pdfMerge
                         {
                             Pages.Insert(Math.Min(newInsert + i, Pages.Count), orderedDragged[i]);
                         }
-                        ReindexSequenceNumbers();
+                        PageReorderService.ReindexSequenceNumbers(Pages);
                     }
                 }
 
@@ -631,7 +726,7 @@ namespace pdfMerge
                 var draggedItems = e.Data.GetData("PdfPageItems") as List<PdfPageItem>;
                 if (draggedItems == null || draggedItems.Count == 0) return;
 
-                ReindexSequenceNumbers();
+                PageReorderService.ReindexSequenceNumbers(Pages);
                 UpdateUIState();
 
                 TxtStatus.Text = $"Moved {draggedItems.Count} page{(draggedItems.Count == 1 ? "" : "s")}";
@@ -690,25 +785,19 @@ namespace pdfMerge
 
         private void BtnSelectAllPages_Click(object sender, RoutedEventArgs e)
         {
-            foreach (var page in Pages)
-            {
-                page.IsSelected = true;
-            }
+            PageSelectionService.SelectAll(Pages);
             UpdateUIState();
         }
 
         private void BtnDeselectAllPages_Click(object sender, RoutedEventArgs e)
         {
-            foreach (var page in Pages)
-            {
-                page.IsSelected = false;
-            }
+            PageSelectionService.DeselectAll(Pages);
             UpdateUIState();
         }
 
         private void BtnRotateSelectedCW_Click(object sender, RoutedEventArgs e)
         {
-            var selectedPages = GetSelectedOrAllPages();
+            var selectedPages = PageSelectionService.GetSelectedOrAllPages(Pages);
             foreach (var page in selectedPages)
             {
                 page.RotateClockwise();
@@ -718,7 +807,7 @@ namespace pdfMerge
 
         private void BtnRotateSelectedCCW_Click(object sender, RoutedEventArgs e)
         {
-            var selectedPages = GetSelectedOrAllPages();
+            var selectedPages = PageSelectionService.GetSelectedOrAllPages(Pages);
             foreach (var page in selectedPages)
             {
                 page.RotateCounterClockwise();
@@ -737,7 +826,7 @@ namespace pdfMerge
                 Pages.Remove(page);
             }
 
-            ReindexSequenceNumbers();
+            PageReorderService.ReindexSequenceNumbers(Pages);
             UpdateUIState();
             TxtStatus.Text = $"Deleted {count} page{(count == 1 ? "" : "s")}";
         }
@@ -765,7 +854,7 @@ namespace pdfMerge
             if (sender is Button btn && btn.DataContext is PdfPageItem pageItem)
             {
                 Pages.Remove(pageItem);
-                ReindexSequenceNumbers();
+                PageReorderService.ReindexSequenceNumbers(Pages);
                 UpdateUIState();
                 TxtStatus.Text = $"Deleted Page {pageItem.DisplayPageNumber}";
             }
@@ -782,12 +871,8 @@ namespace pdfMerge
 
                 if (sigWindow.ShowDialog() == true && sigWindow.ResultSignature != null)
                 {
+                    // #12: Just set the signature — the model computes the display thumbnail automatically
                     pageItem.PageSignature = sigWindow.ResultSignature;
-
-                    if (pageItem.Thumbnail != null)
-                    {
-                        pageItem.Thumbnail = BitmapUtilities.RenderSignatureOverlayOnThumbnail(pageItem.Thumbnail, sigWindow.ResultSignature);
-                    }
 
                     TxtStatus.Text = $"Applied signature to Page {pageItem.DisplayPageNumber}";
                 }
@@ -838,23 +923,10 @@ namespace pdfMerge
                     int count = 0;
                     foreach (var pageItem in selectedPages)
                     {
-                        BitmapSource? pageImage = await PdfService.RenderPageThumbnailAsync(pageItem.SourceFilePath, pageItem.OriginalPageIndex, 2048);
-                        if (pageImage == null && pageItem.Thumbnail != null)
-                        {
-                            pageImage = pageItem.Thumbnail;
-                        }
+                        BitmapSource? pageImage = await PageRenderService.RenderCompositePageAsync(pageItem, 2048);
 
                         if (pageImage != null)
                         {
-                            if (pageItem.Rotation != 0)
-                            {
-                                pageImage = BitmapUtilities.RotateBitmap(pageImage, pageItem.Rotation);
-                            }
-
-                            if (pageItem.PageSignature != null)
-                            {
-                                pageImage = BitmapUtilities.RenderSignatureOverlayOnThumbnail(pageImage, pageItem.PageSignature);
-                            }
 
                             string targetPath = selectedPages.Count == 1
                                 ? dialog.FileName
@@ -998,39 +1070,7 @@ namespace pdfMerge
 
         #region Helpers
 
-        private void ReindexFilesOrder()
-        {
-            for (int i = 0; i < Files.Count; i++)
-            {
-                Files[i].Order = i + 1;
-            }
-        }
-
-        private void ReindexSequenceNumbers()
-        {
-            for (int i = 0; i < Pages.Count; i++)
-            {
-                Pages[i].DisplayPageNumber = i + 1;
-            }
-        }
-
-        private void RebuildPagesFromFilesOrder()
-        {
-            var fileOrderDict = Files.Select((f, index) => new { f.FilePath, index })
-                                     .ToDictionary(x => x.FilePath, x => x.index, StringComparer.OrdinalIgnoreCase);
-
-            var sortedPages = Pages.OrderBy(p => fileOrderDict.TryGetValue(p.SourceFilePath, out int order) ? order : int.MaxValue)
-                                   .ThenBy(p => p.OriginalPageIndex)
-                                   .ToList();
-
-            Pages.Clear();
-            foreach (var page in sortedPages)
-            {
-                Pages.Add(page);
-            }
-
-            ReindexSequenceNumbers();
-        }
+        // ReindexSequenceNumbers, ReindexFilesOrder, RebuildPagesFromFilesOrder moved to Services/PageReorderService.cs (Priority 6)
 
         private void UpdateUIState()
         {
