@@ -11,14 +11,11 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using pdfMerge.Models;
+using pdfMerge.Services;
 
 namespace pdfMerge.Views
 {
-    public class SavedSignatureItem
-    {
-        public string FilePath { get; set; } = string.Empty;
-        public BitmapImage Image { get; set; } = null!;
-    }
+    // SavedSignatureItem moved to Models/SavedSignatureItem.cs (Rec #3)
 
     public partial class SignatureWindow : Window
     {
@@ -149,7 +146,10 @@ namespace pdfMerge.Views
                         imgOffset = ImgPagePreview.TranslatePoint(new Point(0, 0), GridStep1Canvas);
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error translating image offset: {ex.Message}");
+                }
 
                 double imgWidth = ImgPagePreview.ActualWidth;
                 double imgHeight = ImgPagePreview.ActualHeight;
@@ -252,8 +252,8 @@ namespace pdfMerge.Views
 
         private void SetTabButtonStyle(Button btn, bool isActive)
         {
-            btn.Foreground = new SolidColorBrush(isActive ? Color.FromRgb(14, 165, 233) : Color.FromRgb(148, 163, 184));
-            btn.BorderBrush = new SolidColorBrush(isActive ? Color.FromRgb(14, 165, 233) : Colors.Transparent);
+            btn.Foreground = (SolidColorBrush)Application.Current.Resources[isActive ? "PrimaryBlueBrush" : "MutedFgBrush"];
+            btn.BorderBrush = isActive ? (SolidColorBrush)Application.Current.Resources["PrimaryBlueBrush"] : Brushes.Transparent;
             btn.BorderThickness = new Thickness(0, 0, 0, isActive ? 3 : 0);
             btn.FontWeight = isActive ? FontWeights.Bold : FontWeights.SemiBold;
         }
@@ -355,7 +355,7 @@ namespace pdfMerge.Views
                     if (child is Button b)
                     {
                         bool isSelected = fontName.Equals(b.Tag as string);
-                        b.Background = new SolidColorBrush(isSelected ? Color.FromRgb(14, 165, 233) : Color.FromRgb(51, 65, 85));
+                        b.Background = (SolidColorBrush)Application.Current.Resources[isSelected ? "PrimaryBlueBrush" : "SubtleBorderBrush"];
                         b.FontWeight = isSelected ? FontWeights.Bold : FontWeights.Normal;
                     }
                 }
@@ -411,7 +411,7 @@ namespace pdfMerge.Views
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                if (files.Length > 0 && IsSupportedImageFile(files[0]))
+                if (files.Length > 0 && PdfService.IsSupportedImageFile(files[0]))
                 {
                     e.Effects = DragDropEffects.Copy;
                     e.Handled = true;
@@ -427,18 +427,14 @@ namespace pdfMerge.Views
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                if (files.Length > 0 && IsSupportedImageFile(files[0]))
+                if (files.Length > 0 && PdfService.IsSupportedImageFile(files[0]))
                 {
                     LoadImageFromFile(files[0]);
                 }
             }
         }
 
-        private bool IsSupportedImageFile(string filePath)
-        {
-            string ext = Path.GetExtension(filePath).ToLowerInvariant();
-            return ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp";
-        }
+        // IsSupportedImageFile removed — using PdfService.IsSupportedImageFile instead (Rec #12)
 
         private void BtnLoadImageSignature_Click(object sender, RoutedEventArgs e)
         {
@@ -495,10 +491,10 @@ namespace pdfMerge.Views
                 TxtSymbolPreview.FontSize = symbol == "APPROVED" ? 36 : 72;
 
                 // Update button active state
-                BtnSymbolCheck.Background = new SolidColorBrush(symbol == "✔" ? Color.FromRgb(14, 165, 233) : Color.FromRgb(51, 65, 85));
-                BtnSymbolCross.Background = new SolidColorBrush(symbol == "✖" ? Color.FromRgb(14, 165, 233) : Color.FromRgb(51, 65, 85));
-                BtnSymbolStar.Background = new SolidColorBrush(symbol == "★" ? Color.FromRgb(14, 165, 233) : Color.FromRgb(51, 65, 85));
-                BtnSymbolApproved.Background = new SolidColorBrush(symbol == "APPROVED" ? Color.FromRgb(14, 165, 233) : Color.FromRgb(51, 65, 85));
+                BtnSymbolCheck.Background = (SolidColorBrush)Application.Current.Resources[symbol == "✔" ? "PrimaryBlueBrush" : "SubtleBorderBrush"];
+                BtnSymbolCross.Background = (SolidColorBrush)Application.Current.Resources[symbol == "✖" ? "PrimaryBlueBrush" : "SubtleBorderBrush"];
+                BtnSymbolStar.Background = (SolidColorBrush)Application.Current.Resources[symbol == "★" ? "PrimaryBlueBrush" : "SubtleBorderBrush"];
+                BtnSymbolApproved.Background = (SolidColorBrush)Application.Current.Resources[symbol == "APPROVED" ? "PrimaryBlueBrush" : "SubtleBorderBrush"];
             }
         }
 
@@ -552,7 +548,10 @@ namespace pdfMerge.Views
                         Image = bitmap
                     });
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error loading saved signature '{file}': {ex.Message}");
+                }
             }
         }
 
@@ -584,7 +583,10 @@ namespace pdfMerge.Views
                         File.Delete(item.FilePath);
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error deleting saved signature: {ex.Message}");
+                }
 
                 if (_loadedImageSignature == item.Image)
                 {

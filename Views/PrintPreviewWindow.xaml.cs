@@ -8,33 +8,28 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using pdfMerge.Helpers;
 using pdfMerge.Models;
 using pdfMerge.Services;
 
 namespace pdfMerge.Views
 {
-    public class PrintQueueItem
-    {
-        public string Name { get; set; } = string.Empty;
-        public PrintQueue Queue { get; set; } = null!;
-    }
+    // PrintQueueItem moved to Models/PrintQueueItem.cs (Rec #3)
 
     public partial class PrintPreviewWindow : Window
     {
         private readonly List<PdfPageItem> _allPages;
-        private readonly PdfService _pdfService;
 
         private List<PdfPageItem> _pagesToPrint = new List<PdfPageItem>();
         private List<BitmapSource> _renderedPageBitmaps = new List<BitmapSource>();
         private int _currentPreviewIndex = 0;
         private CancellationTokenSource? _renderCts;
 
-        public PrintPreviewWindow(List<PdfPageItem> allPages, PdfService pdfService)
+        public PrintPreviewWindow(List<PdfPageItem> allPages)
         {
             InitializeComponent();
 
             _allPages = allPages ?? new List<PdfPageItem>();
-            _pdfService = pdfService;
 
             PopulatePrinters();
 
@@ -164,31 +159,38 @@ namespace pdfMerge.Views
         {
             if (_allPages == null || _allPages.Count == 0) return;
 
-            List<PdfPageItem> targetPages;
-
-            if (RdoRangeSelected != null && RdoRangeSelected.IsChecked == true)
+            try
             {
-                targetPages = _allPages.Where(p => p.IsSelected).ToList();
-                if (targetPages.Count == 0) targetPages = _allPages.ToList();
-            }
-            else if (RdoRangeCustom != null && RdoRangeCustom.IsChecked == true && TxtCustomRange != null)
-            {
-                targetPages = ParseCustomPageRange(TxtCustomRange.Text, _allPages);
-            }
-            else
-            {
-                targetPages = _allPages.ToList();
-            }
+                List<PdfPageItem> targetPages;
 
-            _pagesToPrint = targetPages.ToList();
+                if (RdoRangeSelected != null && RdoRangeSelected.IsChecked == true)
+                {
+                    targetPages = _allPages.Where(p => p.IsSelected).ToList();
+                    if (targetPages.Count == 0) targetPages = _allPages.ToList();
+                }
+                else if (RdoRangeCustom != null && RdoRangeCustom.IsChecked == true && TxtCustomRange != null)
+                {
+                    targetPages = ParseCustomPageRange(TxtCustomRange.Text, _allPages);
+                }
+                else
+                {
+                    targetPages = _allPages.ToList();
+                }
 
-            if (TxtPreviewRangeInfo != null)
-            {
-                TxtPreviewRangeInfo.Text = $"{_pagesToPrint.Count} Page{(_pagesToPrint.Count == 1 ? "" : "s")} Selected";
+                _pagesToPrint = targetPages.ToList();
+
+                if (TxtPreviewRangeInfo != null)
+                {
+                    TxtPreviewRangeInfo.Text = $"{_pagesToPrint.Count} Page{(_pagesToPrint.Count == 1 ? "" : "s")} Selected";
+                }
+
+                _currentPreviewIndex = 0;
+                await RenderAllPreviewPagesAsync(_pagesToPrint.ToList());
             }
-
-            _currentPreviewIndex = 0;
-            await RenderAllPreviewPagesAsync(_pagesToPrint.ToList());
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error evaluating print range: {ex.Message}");
+            }
         }
 
         private List<PdfPageItem> ParseCustomPageRange(string rangeText, List<PdfPageItem> allPages)
@@ -227,7 +229,10 @@ namespace pdfMerge.Views
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error parsing custom page range '{rangeText}': {ex.Message}");
+            }
 
             return result.Count > 0 ? result : allPages.ToList();
         }
@@ -246,7 +251,7 @@ namespace pdfMerge.Views
             {
                 if (token.IsCancellationRequested) return;
 
-                BitmapSource? pageImage = await _pdfService.RenderPageThumbnailAsync(pageItem.SourceFilePath, pageItem.OriginalPageIndex, 1600);
+                BitmapSource? pageImage = await PdfService.RenderPageThumbnailAsync(pageItem.SourceFilePath, pageItem.OriginalPageIndex, 1600);
                 if (pageImage == null && pageItem.Thumbnail != null)
                 {
                     pageImage = pageItem.Thumbnail;
@@ -258,12 +263,12 @@ namespace pdfMerge.Views
                 {
                     if (pageItem.Rotation != 0)
                     {
-                        pageImage = RotateBitmap(pageImage, pageItem.Rotation);
+                        pageImage = BitmapUtilities.RotateBitmap(pageImage, pageItem.Rotation);
                     }
 
                     if (pageItem.PageSignature != null)
                     {
-                        pageImage = RenderSignatureOverlayOnThumbnail(pageImage, pageItem.PageSignature);
+                        pageImage = BitmapUtilities.RenderSignatureOverlayOnThumbnail(pageImage, pageItem.PageSignature);
                     }
 
                     newBitmaps.Add(pageImage);
@@ -313,7 +318,7 @@ namespace pdfMerge.Views
 
             if (RdoMonochrome != null && RdoMonochrome.IsChecked == true)
             {
-                currentBitmap = ConvertToGrayscale(currentBitmap);
+                currentBitmap = BitmapUtilities.ConvertToGrayscale(currentBitmap);
             }
 
             ImgLivePagePreview.Source = currentBitmap;
@@ -337,43 +342,7 @@ namespace pdfMerge.Views
             }
         }
 
-        private BitmapSource RotateBitmap(BitmapSource source, int angle)
-        {
-            var transformed = new TransformedBitmap(source, new RotateTransform(angle));
-            transformed.Freeze();
-            return transformed;
-        }
-
-        private BitmapSource ConvertToGrayscale(BitmapSource source)
-        {
-            var grayBitmap = new FormatConvertedBitmap(source, PixelFormats.Gray8, null, 0);
-            grayBitmap.Freeze();
-            return grayBitmap;
-        }
-
-        private BitmapSource RenderSignatureOverlayOnThumbnail(BitmapSource baseThumb, AppliedSignature sig)
-        {
-            int width = baseThumb.PixelWidth;
-            int height = baseThumb.PixelHeight;
-
-            var visual = new DrawingVisual();
-            using (DrawingContext dc = visual.RenderOpen())
-            {
-                dc.DrawImage(baseThumb, new Rect(0, 0, width, height));
-
-                double sigX = width * sig.RelX;
-                double sigY = height * sig.RelY;
-                double sigW = width * sig.RelWidth;
-                double sigH = height * sig.RelHeight;
-
-                dc.DrawImage(sig.SignatureImage, new Rect(sigX, sigY, sigW, sigH));
-            }
-
-            var rtb = new RenderTargetBitmap(width, height, baseThumb.DpiX, baseThumb.DpiY, PixelFormats.Pbgra32);
-            rtb.Render(visual);
-            rtb.Freeze();
-            return rtb;
-        }
+        // RotateBitmap, ConvertToGrayscale, RenderSignatureOverlayOnThumbnail moved to Helpers/BitmapUtilities.cs (Rec #1)
 
         private void BtnPrintNow_Click(object sender, RoutedEventArgs e)
         {
@@ -422,7 +391,7 @@ namespace pdfMerge.Views
 
                 printDialog.PrintTicket = ticket;
 
-                var finalBitmaps = _renderedPageBitmaps.Select(b => (RdoMonochrome != null && RdoMonochrome.IsChecked == true) ? ConvertToGrayscale(b) : b).ToList();
+                var finalBitmaps = _renderedPageBitmaps.Select(b => (RdoMonochrome != null && RdoMonochrome.IsChecked == true) ? BitmapUtilities.ConvertToGrayscale(b) : b).ToList();
                 Size printArea = new Size(printDialog.PrintableAreaWidth > 0 ? printDialog.PrintableAreaWidth : 792, printDialog.PrintableAreaHeight > 0 ? printDialog.PrintableAreaHeight : 1122);
 
                 var paginator = new PdfDocumentPaginator(finalBitmaps, printArea);

@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Printing;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -13,6 +14,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
+using pdfMerge.Helpers;
 using pdfMerge.Models;
 using pdfMerge.Services;
 
@@ -20,7 +22,7 @@ namespace pdfMerge
 {
     public partial class MainWindow : Window
     {
-        private readonly PdfService _pdfService = new PdfService();
+        private CancellationTokenSource? _loadCts;
 
         private Point _dragStartPoint;
         private bool _isDraggingPages;
@@ -49,6 +51,7 @@ namespace pdfMerge
 
         protected override void OnClosed(EventArgs e)
         {
+            _loadCts?.Cancel();
             base.OnClosed(e);
             Application.Current.Shutdown();
 
@@ -146,6 +149,10 @@ namespace pdfMerge
 
         private async Task AddFilesAsync(IEnumerable<string> filePaths)
         {
+            _loadCts?.Cancel();
+            _loadCts = new CancellationTokenSource();
+            var token = _loadCts.Token;
+
             SetLoadingState(true, "Processing files...");
 
             try
@@ -154,12 +161,14 @@ namespace pdfMerge
 
                 foreach (var filePath in filePaths)
                 {
+                    if (token.IsCancellationRequested) break;
+
                     if (Files.Any(f => f.FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase)))
                     {
                         continue;
                     }
 
-                    int pageCount = await _pdfService.GetPageCountAsync(filePath);
+                    int pageCount = await PdfService.GetPageCountAsync(filePath);
 
                     var fileItem = new PdfFileItem
                     {
@@ -172,7 +181,9 @@ namespace pdfMerge
 
                     for (int pageIdx = 0; pageIdx < pageCount; pageIdx++)
                     {
-                        BitmapSource? thumb = await _pdfService.RenderPageThumbnailAsync(filePath, pageIdx, 350);
+                        if (token.IsCancellationRequested) break;
+
+                        BitmapSource? thumb = await PdfService.RenderPageThumbnailAsync(filePath, pageIdx, 350);
 
                         var pageItem = new PdfPageItem
                         {
@@ -187,21 +198,27 @@ namespace pdfMerge
                     }
                 }
 
-                foreach (var page in newPagesList)
+                if (!token.IsCancellationRequested)
                 {
-                    Pages.Add(page);
-                    _originalPagesSnapshot.Add(page.CloneSnapshot());
+                    foreach (var page in newPagesList)
+                    {
+                        Pages.Add(page);
+                        _originalPagesSnapshot.Add(page.CloneSnapshot());
+                    }
+
+                    ReindexSequenceNumbers();
+                    UpdateUIState();
+
+                    SetLoadingState(false, $"Loaded {newPagesList.Count} page(s) from {filePaths.Count()} file(s)");
                 }
-
-                ReindexSequenceNumbers();
-                UpdateUIState();
-
-                SetLoadingState(false, $"Loaded {newPagesList.Count} page(s) from {filePaths.Count()} file(s)");
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, $"Error loading files: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                SetLoadingState(false, "Failed to load files");
+                if (!token.IsCancellationRequested)
+                {
+                    MessageBox.Show(this, $"Error loading files: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    SetLoadingState(false, "Failed to load files");
+                }
             }
         }
 
@@ -222,8 +239,7 @@ namespace pdfMerge
                 ReindexSequenceNumbers();
                 UpdateUIState();
 
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
+                // GC.Collect/WaitForPendingFinalizers removed (Rec #10) — the runtime handles collection automatically
 
                 TxtStatus.Text = $"Removed file '{fileItem.FileName}'";
             }
@@ -305,13 +321,11 @@ namespace pdfMerge
 
             if (MessageBox.Show(this, "Are you sure you want to clear all loaded files and pages?", "Clear All", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
+                _loadCts?.Cancel();
                 Files.Clear();
                 Pages.Clear();
                 _originalPagesSnapshot.Clear();
                 UpdateUIState();
-                
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
 
                 TxtStatus.Text = "Cleared all files";
             }
@@ -571,8 +585,8 @@ namespace pdfMerge
 
                 if (draggedItems != null && draggedItems.Count > 0 && hitResult != null)
                 {
-                    PdfPageItem targetPage = hitResult.Item2;
-                    bool insertBefore = e.GetPosition(hitResult.Item1).X < (hitResult.Item1.ActualWidth / 2.0);
+                    PdfPageItem targetPage = hitResult.Value.Page;
+                    bool insertBefore = e.GetPosition(hitResult.Value.Container).X < (hitResult.Value.Container.ActualWidth / 2.0);
 
                     var orderedDragged = Pages.Where(p => draggedItems.Contains(p)).ToList();
                     int targetIdxInPages = Pages.IndexOf(targetPage);
@@ -634,7 +648,7 @@ namespace pdfMerge
             _currentDraggedGroup = null;
         }
 
-        private Tuple<ListBoxItem, PdfPageItem>? GetListBoxItemAtPosition(Point position)
+        private (ListBoxItem Container, PdfPageItem Page)? GetListBoxItemAtPosition(Point position)
         {
             HitTestResult result = VisualTreeHelper.HitTest(LstPages, position);
             if (result != null)
@@ -644,7 +658,7 @@ namespace pdfMerge
                 {
                     if (obj is ListBoxItem item && item.DataContext is PdfPageItem pageItem)
                     {
-                        return Tuple.Create(item, pageItem);
+                        return (item, pageItem);
                     }
                     obj = VisualTreeHelper.GetParent(obj);
                 }
@@ -772,7 +786,7 @@ namespace pdfMerge
 
                     if (pageItem.Thumbnail != null)
                     {
-                        pageItem.Thumbnail = RenderSignatureOverlayOnThumbnail(pageItem.Thumbnail, sigWindow.ResultSignature);
+                        pageItem.Thumbnail = BitmapUtilities.RenderSignatureOverlayOnThumbnail(pageItem.Thumbnail, sigWindow.ResultSignature);
                     }
 
                     TxtStatus.Text = $"Applied signature to Page {pageItem.DisplayPageNumber}";
@@ -780,29 +794,7 @@ namespace pdfMerge
             }
         }
 
-        private BitmapSource RenderSignatureOverlayOnThumbnail(BitmapSource baseThumb, AppliedSignature sig)
-        {
-            int width = baseThumb.PixelWidth;
-            int height = baseThumb.PixelHeight;
-
-            var visual = new DrawingVisual();
-            using (DrawingContext dc = visual.RenderOpen())
-            {
-                dc.DrawImage(baseThumb, new Rect(0, 0, width, height));
-
-                double sigX = width * sig.RelX;
-                double sigY = height * sig.RelY;
-                double sigW = width * sig.RelWidth;
-                double sigH = height * sig.RelHeight;
-
-                dc.DrawImage(sig.SignatureImage, new Rect(sigX, sigY, sigW, sigH));
-            }
-
-            var rtb = new RenderTargetBitmap(width, height, baseThumb.DpiX, baseThumb.DpiY, PixelFormats.Pbgra32);
-            rtb.Render(visual);
-            rtb.Freeze();
-            return rtb;
-        }
+        // RenderSignatureOverlayOnThumbnail moved to Helpers/BitmapUtilities.cs (Rec #1)
 
         private List<PdfPageItem> GetSelectedOrAllPages()
         {
@@ -846,7 +838,7 @@ namespace pdfMerge
                     int count = 0;
                     foreach (var pageItem in selectedPages)
                     {
-                        BitmapSource? pageImage = await _pdfService.RenderPageThumbnailAsync(pageItem.SourceFilePath, pageItem.OriginalPageIndex, 2048);
+                        BitmapSource? pageImage = await PdfService.RenderPageThumbnailAsync(pageItem.SourceFilePath, pageItem.OriginalPageIndex, 2048);
                         if (pageImage == null && pageItem.Thumbnail != null)
                         {
                             pageImage = pageItem.Thumbnail;
@@ -856,12 +848,12 @@ namespace pdfMerge
                         {
                             if (pageItem.Rotation != 0)
                             {
-                                pageImage = RotateBitmap(pageImage, pageItem.Rotation);
+                                pageImage = BitmapUtilities.RotateBitmap(pageImage, pageItem.Rotation);
                             }
 
                             if (pageItem.PageSignature != null)
                             {
-                                pageImage = RenderSignatureOverlayOnThumbnail(pageImage, pageItem.PageSignature);
+                                pageImage = BitmapUtilities.RenderSignatureOverlayOnThumbnail(pageImage, pageItem.PageSignature);
                             }
 
                             string targetPath = selectedPages.Count == 1
@@ -894,12 +886,7 @@ namespace pdfMerge
             }
         }
 
-        private BitmapSource RotateBitmap(BitmapSource source, int angle)
-        {
-            var transformed = new TransformedBitmap(source, new RotateTransform(angle));
-            transformed.Freeze();
-            return transformed;
-        }
+        // RotateBitmap moved to Helpers/BitmapUtilities.cs (Rec #1)
 
         private void BtnPrint_Click(object sender, RoutedEventArgs e)
         {
@@ -909,7 +896,7 @@ namespace pdfMerge
                 return;
             }
 
-            var previewWindow = new pdfMerge.Views.PrintPreviewWindow(Pages.ToList(), _pdfService)
+            var previewWindow = new pdfMerge.Views.PrintPreviewWindow(Pages.ToList())
             {
                 Owner = this
             };
@@ -920,12 +907,7 @@ namespace pdfMerge
             }
         }
 
-        private BitmapSource ConvertToGrayscale(BitmapSource source)
-        {
-            var grayBitmap = new FormatConvertedBitmap(source, PixelFormats.Gray8, null, 0);
-            grayBitmap.Freeze();
-            return grayBitmap;
-        }
+        // ConvertToGrayscale moved to Helpers/BitmapUtilities.cs (Rec #1)
 
         private async void BtnSaveSelected_Click(object sender, RoutedEventArgs e)
         {
@@ -949,7 +931,7 @@ namespace pdfMerge
 
                 try
                 {
-                    await _pdfService.MergeAndSavePdfAsync(selectedPages, dialog.FileName);
+                    await PdfService.MergeAndSavePdfAsync(selectedPages, dialog.FileName);
                     SetLoadingState(false, "Selected PDF pages saved successfully!");
 
                     var result = MessageBox.Show(this, $"Successfully created PDF with {selectedPages.Count} selected page(s):\n{dialog.FileName}\n\nWould you like to open the output folder?", "Save Selected Complete", MessageBoxButton.YesNo, MessageBoxImage.Information);
@@ -991,7 +973,7 @@ namespace pdfMerge
 
                 try
                 {
-                    await _pdfService.MergeAndSavePdfAsync(Pages.ToList(), dialog.FileName);
+                    await PdfService.MergeAndSavePdfAsync(Pages.ToList(), dialog.FileName);
                     SetLoadingState(false, "Merged PDF saved successfully!");
 
                     var result = MessageBox.Show(this, $"Successfully created merged PDF:\n{dialog.FileName}\n\nWould you like to open the output folder?", "Merge Complete", MessageBoxButton.YesNo, MessageBoxImage.Information);
@@ -1083,46 +1065,5 @@ namespace pdfMerge
         #endregion
     }
 
-    /// <summary>
-    /// DocumentPaginator for printing PDF document pages with native PrintDialog options.
-    /// </summary>
-    public class PdfDocumentPaginator : DocumentPaginator
-    {
-        private readonly List<BitmapSource> _pageBitmaps;
-        private Size _pageSize;
-
-        public PdfDocumentPaginator(List<BitmapSource> pageBitmaps, Size pageSize)
-        {
-            _pageBitmaps = pageBitmaps;
-            _pageSize = pageSize;
-        }
-
-        public override DocumentPage GetPage(int pageNumber)
-        {
-            if (pageNumber < 0 || pageNumber >= _pageBitmaps.Count)
-                throw new ArgumentOutOfRangeException(nameof(pageNumber));
-
-            var bitmap = _pageBitmaps[pageNumber];
-
-            var visual = new DrawingVisual();
-            using (DrawingContext dc = visual.RenderOpen())
-            {
-                double scale = Math.Min(_pageSize.Width / bitmap.PixelWidth, _pageSize.Height / bitmap.PixelHeight);
-                double renderWidth = bitmap.PixelWidth * scale;
-                double renderHeight = bitmap.PixelHeight * scale;
-
-                double offsetX = (_pageSize.Width - renderWidth) / 2.0;
-                double offsetY = (_pageSize.Height - renderHeight) / 2.0;
-
-                dc.DrawImage(bitmap, new Rect(offsetX, offsetY, renderWidth, renderHeight));
-            }
-
-            return new DocumentPage(visual, _pageSize, new Rect(0, 0, _pageSize.Width, _pageSize.Height), new Rect(0, 0, _pageSize.Width, _pageSize.Height));
-        }
-
-        public override bool IsPageCountValid => true;
-        public override int PageCount => _pageBitmaps.Count;
-        public override Size PageSize { get => _pageSize; set => _pageSize = value; }
-        public override IDocumentPaginatorSource? Source => null;
-    }
+    // PdfDocumentPaginator moved to Models/PdfDocumentPaginator.cs (Rec #2)
 }

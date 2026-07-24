@@ -20,29 +20,34 @@ using Windows.Storage;
 
 namespace pdfMerge.Services
 {
-    public class PdfService
+    /// <summary>
+    /// Stateless PDF service — all methods are static (Rec #14).
+    /// </summary>
+    public static class PdfService
     {
-        private static readonly string[] ImageExtensions = { ".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp" };
+        private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"
+        };
 
         public static bool IsSupportedImageFile(string filePath)
         {
             string ext = Path.GetExtension(filePath);
             if (string.IsNullOrEmpty(ext)) return false;
-            return ImageExtensions.Contains(ext.ToLowerInvariant());
+            return ImageExtensions.Contains(ext);
         }
 
         public static bool IsSupportedFile(string filePath)
         {
             string ext = Path.GetExtension(filePath);
             if (string.IsNullOrEmpty(ext)) return false;
-            string lowerExt = ext.ToLowerInvariant();
-            return lowerExt == ".pdf" || ImageExtensions.Contains(lowerExt);
+            return string.Equals(ext, ".pdf", StringComparison.OrdinalIgnoreCase) || ImageExtensions.Contains(ext);
         }
 
         /// <summary>
         /// Gets total page count of a PDF or Image file.
         /// </summary>
-        public async Task<int> GetPageCountAsync(string filePath)
+        public static async Task<int> GetPageCountAsync(string filePath)
         {
             string fullPath = Path.GetFullPath(filePath);
 
@@ -57,8 +62,9 @@ namespace pdfMerge.Services
                 WinPdfDocument pdfDoc = await WinPdfDocument.LoadFromFileAsync(file);
                 return (int)pdfDoc.PageCount;
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"WinRT PDF load failed for {fullPath}, falling back to PdfSharp: {ex.Message}");
                 using var stream = File.OpenRead(fullPath);
                 using var doc = PdfSharpReader.Open(stream, PdfSharpOpenMode.Import);
                 return doc.PageCount;
@@ -68,7 +74,7 @@ namespace pdfMerge.Services
         /// <summary>
         /// Renders a specific page of a PDF or Image as a WPF BitmapImage thumbnail.
         /// </summary>
-        public async Task<BitmapSource?> RenderPageThumbnailAsync(string filePath, int pageIndex, uint targetWidth = 350)
+        public static async Task<BitmapSource?> RenderPageThumbnailAsync(string filePath, int pageIndex, uint targetWidth = 350)
         {
             string fullPath = Path.GetFullPath(filePath);
 
@@ -133,7 +139,7 @@ namespace pdfMerge.Services
         /// <summary>
         /// Merges, rotates, and saves selected PDF and Image pages into a new PDF document.
         /// </summary>
-        public async Task MergeAndSavePdfAsync(IEnumerable<PdfPageItem> pageItems, string outputPath)
+        public static async Task MergeAndSavePdfAsync(IEnumerable<PdfPageItem> pageItems, string outputPath)
         {
             await Task.Run(() =>
             {

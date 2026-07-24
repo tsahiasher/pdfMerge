@@ -38,7 +38,14 @@ namespace pdfMerge
 
             if (e.Args.Contains("--test"))
             {
-                await RunAutomatedTestAsync();
+                try
+                {
+                    await RunAutomatedTestAsync();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"\n❌ TEST ERROR: {ex.Message}");
+                }
                 Environment.Exit(0);
             }
         }
@@ -60,10 +67,8 @@ namespace pdfMerge
             Console.WriteLine("2. Creating test PDF 2 (2 pages)...");
             CreateSamplePdf(doc2Path, 2);
 
-            var pdfService = new PdfService();
-
-            int count1 = await pdfService.GetPageCountAsync(doc1Path);
-            int count2 = await pdfService.GetPageCountAsync(doc2Path);
+            int count1 = await PdfService.GetPageCountAsync(doc1Path);
+            int count2 = await PdfService.GetPageCountAsync(doc2Path);
 
             Console.WriteLine($"   Doc 1 Page Count: {count1} (Expected: 3)");
             Console.WriteLine($"   Doc 2 Page Count: {count2} (Expected: 2)");
@@ -77,9 +82,9 @@ namespace pdfMerge
             };
 
             Console.WriteLine("3. Merging selected pages, applying rotations (90°, 180°, 270°), and deleting page 2 of Doc 1...");
-            await pdfService.MergeAndSavePdfAsync(pages, outputPath);
+            await PdfService.MergeAndSavePdfAsync(pages, outputPath);
 
-            int resultCount = await pdfService.GetPageCountAsync(outputPath);
+            int resultCount = await PdfService.GetPageCountAsync(outputPath);
             Console.WriteLine($"   Merged Document Page Count: {resultCount} (Expected: 4)");
 
             if (resultCount == 4 && File.Exists(outputPath))
