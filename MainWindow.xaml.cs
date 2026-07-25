@@ -1024,6 +1024,22 @@ namespace pdfMerge
             }
         }
 
+        private void BtnSplit_Click(object sender, RoutedEventArgs e)
+        {
+            if (Pages.Count == 0)
+            {
+                MessageBox.Show(this, "Please add at least one PDF or image file before splitting.", "No Pages Loaded", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var splitWindow = new pdfMerge.Views.SplitWindow(Pages.ToList())
+            {
+                Owner = this
+            };
+
+            splitWindow.ShowDialog();
+        }
+
         private async void BtnMergeSave_Click(object sender, RoutedEventArgs e)
         {
             if (Pages.Count == 0)
