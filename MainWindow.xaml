@@ -5,8 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:pdfMerge"
         mc:Ignorable="d"
-        Title="PDF Merge &amp; Page Manager" Height="780" Width="1240"
-        MinHeight="600" MinWidth="950"
+        Title="PDF Merge &amp; Page Manager" Height="780" Width="1360"
+        MinHeight="600" MinWidth="1050"
         WindowStartupLocation="CenterScreen"
         Icon="pdfMerge.ico"
         Background="#0F172A" Foreground="#F8FAFC"
@@ -70,17 +70,17 @@
                         </StackPanel>
                     </Button>
 
-                    <Button x:Name="BtnSaveSelected" Click="BtnSaveSelected_Click" Style="{StaticResource IconButtonLessStyle}" Margin="0,0,10,0" ToolTip="Save only selected pages to a new PDF">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="💾 " FontSize="13"/>
-                            <TextBlock Text="Save Selected"/>
-                        </StackPanel>
-                    </Button>
-
                     <Button x:Name="BtnSplit" Click="BtnSplit_Click" Style="{StaticResource IconButtonLessStyle}" Margin="0,0,10,0" ToolTip="Split PDF into multiple custom page ranges">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="✂️ " FontSize="13"/>
                             <TextBlock Text="Split PDF"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="BtnPrint" Click="BtnPrint_Click" Style="{StaticResource IconButtonLessStyle}" Margin="0,0,10,0" ToolTip="Print document or selected pages with color, page range, and duplex options">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🖨️ " FontSize="13"/>
+                            <TextBlock Text="Print"/>
                         </StackPanel>
                     </Button>
 
@@ -91,10 +91,10 @@
                         </StackPanel>
                     </Button>
 
-                    <Button x:Name="BtnPrint" Click="BtnPrint_Click" Style="{StaticResource IconButtonLessStyle}" Margin="0,0,10,0" ToolTip="Print document or selected pages with color, page range, and duplex options">
+                    <Button x:Name="BtnSaveSelected" Click="BtnSaveSelected_Click" Style="{StaticResource IconButtonLessStyle}" Margin="0,0,10,0" ToolTip="Save only selected pages to a new PDF">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="🖨️ " FontSize="13"/>
-                            <TextBlock Text="Print"/>
+                            <TextBlock Text="💾 " FontSize="13"/>
+                            <TextBlock Text="Save Selected"/>
                         </StackPanel>
                     </Button>
 

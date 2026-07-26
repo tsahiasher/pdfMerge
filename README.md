@@ -1,6 +1,6 @@
 # PDF Merger & Page Manager
 
-A modern Windows desktop application built in C# for viewing, organizing, rotating, deleting, signing, printing, and merging PDF documents and image files.
+A modern Windows desktop application built in C# for viewing, organizing, rotating, deleting, signing, splitting, printing, and merging PDF documents and image files.
 
 ---
 
@@ -39,7 +39,18 @@ A modern Windows desktop application built in C# for viewing, organizing, rotati
 ### ⚡ 7. PDF Merging & Export
 - Merge configured PDF, image, and signed pages into a single output PDF document.
 
-### 🖨️ 8. Native PDF Printing (With Live Preview Window)
+### ✂️ 8. Split PDF Document
+- **✂️ Split PDF Button**: Located on the top action bar to open an interactive Split PDF dialog.
+- **Flexible Page Range Definition**:
+  - **Custom Range Input**: Enter ranges (e.g. `1-3`, `5`, `7-10`) with custom part labels (e.g. `Chapter 1`).
+  - **From / To Page Selectors**: Specify start and end page numbers.
+- **Quick Split Presets**:
+  - **Split Into Single Pages**: Create separate 1-page PDF files for every page in one click.
+  - **Split Every N Pages**: Chunk the document into parts of N pages each.
+  - **Split Selected Pages Only**: Create separate parts from only the currently selected workspace pages.
+- **Output Batch Configurator**: Preview and manage all configured split output files before saving.
+
+### 🖨️ 9. Native PDF Printing (With Live Preview Window)
 - **🖨️ Print Button**: Located on the top action bar to open an interactive live Print Preview & Settings window.
 - **Live Preview & Controls**:
   - **Live Page Canvas**: Flip through rendered pages with `◀ Prev` / `Next ▶` navigation.
