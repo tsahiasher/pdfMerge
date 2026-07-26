@@ -21,7 +21,7 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 
 4. BUILD INSTALLER SETUP EXE (INNO SETUP 7):
 ----------------------------------------------
-& "C:\Program Files\Inno Setup 7\ISCC.exe" "pdfMerge_Installer.iss"
+"C:\Program Files\Inno Setup 7\ISCC.exe" "pdfMerge_Installer.iss"
 
 (The installer setup file will be generated at: ./Output/PDFMerge_Setup_v1.0.0.exe)
 

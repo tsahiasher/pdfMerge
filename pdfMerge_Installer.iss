@@ -24,7 +24,7 @@ Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
-OutputBaseFilename=PDFMerge_Setup_v1.0.0
+OutputBaseFilename=PDFMerge_Setup
 OutputDir=Output
 
 [Languages]
