@@ -944,11 +944,7 @@ namespace pdfMerge
                     }
 
                     SetLoadingState(false, $"Exported {count} page image(s) successfully!");
-                    var result = MessageBox.Show(this, $"Successfully exported {count} page image(s) to:\n{folder}\n\nWould you like to open the output folder?", "Export Complete", MessageBoxButton.YesNo, MessageBoxImage.Information);
-                    if (result == MessageBoxResult.Yes)
-                    {
-                        System.Diagnostics.Process.Start("explorer.exe", folder);
-                    }
+                    MessageBox.Show(this, $"Successfully exported {count} page image(s) to:\n{folder}", "Export Complete", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 catch (Exception ex)
                 {
@@ -990,6 +986,19 @@ namespace pdfMerge
                 return;
             }
 
+            bool recreateBookmarks = false;
+            if (PdfService.HasBookmarks(selectedPages))
+            {
+                var answer = MessageBox.Show(
+                    this,
+                    "The source document contains bookmarks based on section numbers.\n\nWould you like to recreate the bookmarks in the saved PDF based on the document content?",
+                    "Recreate Bookmarks?",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                recreateBookmarks = (answer == MessageBoxResult.Yes);
+            }
+
             var dialog = new SaveFileDialog
             {
                 Filter = "PDF File (*.pdf)|*.pdf",
@@ -1003,18 +1012,9 @@ namespace pdfMerge
 
                 try
                 {
-                    await PdfService.MergeAndSavePdfAsync(selectedPages, dialog.FileName);
+                    await PdfService.MergeAndSavePdfAsync(selectedPages, dialog.FileName, recreateBookmarks);
                     SetLoadingState(false, "Selected PDF pages saved successfully!");
-
-                    var result = MessageBox.Show(this, $"Successfully created PDF with {selectedPages.Count} selected page(s):\n{dialog.FileName}\n\nWould you like to open the output folder?", "Save Selected Complete", MessageBoxButton.YesNo, MessageBoxImage.Information);
-                    if (result == MessageBoxResult.Yes)
-                    {
-                        string? folder = Path.GetDirectoryName(dialog.FileName);
-                        if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
-                        {
-                            System.Diagnostics.Process.Start("explorer.exe", folder);
-                        }
-                    }
+                    MessageBox.Show(this, $"Successfully created PDF with {selectedPages.Count} selected page(s):\n{dialog.FileName}", "Save Selected Complete", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 catch (Exception ex)
                 {
@@ -1048,6 +1048,20 @@ namespace pdfMerge
                 return;
             }
 
+            var pagesToSave = Pages.ToList();
+            bool recreateBookmarks = false;
+            if (PdfService.HasBookmarks(pagesToSave))
+            {
+                var answer = MessageBox.Show(
+                    this,
+                    "The source document contains bookmarks based on section numbers.\n\nWould you like to recreate the bookmarks in the saved PDF based on the document content?",
+                    "Recreate Bookmarks?",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                recreateBookmarks = (answer == MessageBoxResult.Yes);
+            }
+
             var dialog = new SaveFileDialog
             {
                 Filter = "PDF File (*.pdf)|*.pdf",
@@ -1061,18 +1075,9 @@ namespace pdfMerge
 
                 try
                 {
-                    await PdfService.MergeAndSavePdfAsync(Pages.ToList(), dialog.FileName);
+                    await PdfService.MergeAndSavePdfAsync(pagesToSave, dialog.FileName, recreateBookmarks);
                     SetLoadingState(false, "Merged PDF saved successfully!");
-
-                    var result = MessageBox.Show(this, $"Successfully created merged PDF:\n{dialog.FileName}\n\nWould you like to open the output folder?", "Merge Complete", MessageBoxButton.YesNo, MessageBoxImage.Information);
-                    if (result == MessageBoxResult.Yes)
-                    {
-                        string? folder = Path.GetDirectoryName(dialog.FileName);
-                        if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
-                        {
-                            System.Diagnostics.Process.Start("explorer.exe", folder);
-                        }
-                    }
+                    MessageBox.Show(this, $"Successfully created merged PDF:\n{dialog.FileName}", "Merge Complete", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 catch (Exception ex)
                 {
