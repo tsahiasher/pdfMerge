@@ -298,6 +298,15 @@ namespace pdfMerge.Services
             public List<BookmarkItem> Children { get; set; } = new();
         }
 
+        private sealed class OutputBookmarkNode
+        {
+            public BookmarkItem Bookmark { get; init; } = null!;
+            public PdfSharpPage DestinationPage { get; init; } = null!;
+            public PdfSharp.Pdf.PdfDictionary Dictionary { get; set; } = null!;
+            public PdfSharp.Pdf.Advanced.PdfReference Reference { get; set; } = null!;
+            public List<OutputBookmarkNode> Children { get; } = new();
+        }
+
         private static void RecreateBookmarks(
             PdfSharpDocument outputDocument,
             Dictionary<string, PdfSharpDocument> sourceDocsCache,
@@ -326,79 +335,144 @@ namespace pdfMerge.Services
                 if (rawBookmarks.Count == 0)
                     return;
 
-                var flatBookmarks = new List<BookmarkItem>();
+                var rootNodes = BuildOutputBookmarkNodes(rawBookmarks, pageMap);
+                if (rootNodes.Count == 0)
+                    return;
 
-                void Flatten(List<BookmarkItem> list)
-                {
-                    foreach (var bookmark in list)
-                    {
-                        flatBookmarks.Add(bookmark);
-                        if (bookmark.Children.Count > 0)
-                            Flatten(bookmark.Children);
-                    }
-                }
+                var outlinesRoot = new PdfSharp.Pdf.PdfDictionary(outputDocument);
+                outputDocument.Internals.AddObject(outlinesRoot);
 
-                Flatten(rawBookmarks);
+                var outlinesRootRef = outlinesRoot.Reference;
+                if (outlinesRootRef == null)
+                    throw new InvalidOperationException("Could not create the PDF outlines root reference.");
 
-                var sectionOutlinesDict = new Dictionary<string, PdfSharp.Pdf.PdfOutline>(StringComparer.OrdinalIgnoreCase);
+                AllocateOutlineObjects(outputDocument, rootNodes);
 
-                foreach (var bm in flatBookmarks)
-                {
-                    if (bm.OriginalPageIndex < 0)
-                        continue;
+                var result = WriteOutlineLevel(outputDocument, rootNodes, outlinesRootRef);
 
-                    var key = (bm.SourceFilePath, bm.OriginalPageIndex);
-                    if (!pageMap.TryGetValue(key, out var destPage) || destPage == null)
-                        continue;
+                outlinesRoot.Elements["/Type"] = new PdfSharp.Pdf.PdfName("/Outlines");
+                outlinesRoot.Elements["/First"] = result.First;
+                outlinesRoot.Elements["/Last"] = result.Last;
+                outlinesRoot.Elements["/Count"] = new PdfSharp.Pdf.PdfInteger(result.TotalCount);
 
-                    string title = bm.Title.Trim();
-                    if (string.IsNullOrEmpty(title))
-                        continue;
-
-                    PdfSharp.Pdf.PdfOutline createdOutline;
-                    var match = System.Text.RegularExpressions.Regex.Match(title, @"^(\d+(?:\.\d+)*)");
-
-                    if (match.Success)
-                    {
-                        string secNum = match.Value;
-                        string parentSecNum = GetParentSectionNumber(secNum);
-
-                        if (!string.IsNullOrEmpty(parentSecNum) &&
-                            sectionOutlinesDict.TryGetValue(parentSecNum, out var parentOutline))
-                        {
-                            createdOutline = parentOutline.Outlines.Add(title, destPage, true);
-                        }
-                        else
-                        {
-                            createdOutline = outputDocument.Outlines.Add(title, destPage, true);
-                        }
-
-                        sectionOutlinesDict[secNum] = createdOutline;
-                    }
-                    else
-                    {
-                        createdOutline = outputDocument.Outlines.Add(title, destPage, true);
-                    }
-
-                    try
-                    {
-                        var destArray = BuildDestinationArray(outputDocument, destPage, bm);
-                        if (destArray == null)
-                            continue;
-
-                        createdOutline.Elements.Remove("/A");
-                        createdOutline.Elements["/Dest"] = destArray;
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Error setting bookmark destination for '{title}': {ex.Message}");
-                    }
-                }
+                outputDocument.Internals.Catalog.Elements["/Outlines"] = outlinesRootRef;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error recreating bookmarks: {ex.Message}");
             }
+        }
+
+        private static List<OutputBookmarkNode> BuildOutputBookmarkNodes(
+            IEnumerable<BookmarkItem> bookmarks,
+            Dictionary<(string FilePath, int PageIndex), PdfSharpPage> pageMap)
+        {
+            var result = new List<OutputBookmarkNode>();
+
+            foreach (var bookmark in bookmarks)
+            {
+                var childNodes = BuildOutputBookmarkNodes(bookmark.Children, pageMap);
+
+                PdfSharpPage? destinationPage = null;
+                if (bookmark.OriginalPageIndex >= 0)
+                {
+                    pageMap.TryGetValue(
+                        (bookmark.SourceFilePath, bookmark.OriginalPageIndex),
+                        out destinationPage);
+                }
+
+                string title = bookmark.Title.Trim();
+
+                if (destinationPage != null && !string.IsNullOrEmpty(title))
+                {
+                    var node = new OutputBookmarkNode
+                    {
+                        Bookmark = bookmark,
+                        DestinationPage = destinationPage
+                    };
+                    node.Children.AddRange(childNodes);
+                    result.Add(node);
+                }
+                else
+                {
+                    result.AddRange(childNodes);
+                }
+            }
+
+            return result;
+        }
+
+        private static void AllocateOutlineObjects(
+            PdfSharpDocument document,
+            IEnumerable<OutputBookmarkNode> nodes)
+        {
+            foreach (var node in nodes)
+            {
+                node.Dictionary = new PdfSharp.Pdf.PdfDictionary(document);
+                document.Internals.AddObject(node.Dictionary);
+                node.Reference = node.Dictionary.Reference
+                    ?? throw new InvalidOperationException("Could not allocate an outline item reference.");
+
+                AllocateOutlineObjects(document, node.Children);
+            }
+        }
+
+        private readonly struct OutlineLevelResult
+        {
+            public OutlineLevelResult(
+                PdfSharp.Pdf.Advanced.PdfReference first,
+                PdfSharp.Pdf.Advanced.PdfReference last,
+                int totalCount)
+            {
+                First = first;
+                Last = last;
+                TotalCount = totalCount;
+            }
+
+            public PdfSharp.Pdf.Advanced.PdfReference First { get; }
+            public PdfSharp.Pdf.Advanced.PdfReference Last { get; }
+            public int TotalCount { get; }
+        }
+
+        private static OutlineLevelResult WriteOutlineLevel(
+            PdfSharpDocument document,
+            List<OutputBookmarkNode> nodes,
+            PdfSharp.Pdf.Advanced.PdfReference parentReference)
+        {
+            int totalCount = nodes.Count;
+
+            for (int i = 0; i < nodes.Count; i++)
+            {
+                var node = nodes[i];
+                var dictionary = node.Dictionary;
+
+                dictionary.Elements["/Title"] = new PdfSharp.Pdf.PdfString(node.Bookmark.Title.Trim());
+                dictionary.Elements["/Parent"] = parentReference;
+
+                if (i > 0)
+                    dictionary.Elements["/Prev"] = nodes[i - 1].Reference;
+
+                if (i + 1 < nodes.Count)
+                    dictionary.Elements["/Next"] = nodes[i + 1].Reference;
+
+                var destination = BuildDestinationArray(document, node.DestinationPage, node.Bookmark);
+                if (destination != null)
+                    dictionary.Elements["/Dest"] = destination;
+
+                if (node.Children.Count > 0)
+                {
+                    var childResult = WriteOutlineLevel(document, node.Children, node.Reference);
+                    dictionary.Elements["/First"] = childResult.First;
+                    dictionary.Elements["/Last"] = childResult.Last;
+                    dictionary.Elements["/Count"] = new PdfSharp.Pdf.PdfInteger(childResult.TotalCount);
+                    totalCount += childResult.TotalCount;
+                }
+            }
+
+            return new OutlineLevelResult(
+                nodes[0].Reference,
+                nodes[nodes.Count - 1].Reference,
+                totalCount);
         }
 
         private static PdfSharp.Pdf.PdfArray? BuildDestinationArray(
@@ -528,18 +602,27 @@ namespace pdfMerge.Services
             {
                 PdfSharp.Pdf.PdfItem? destObj = null;
 
-                if (outline.Elements.ContainsKey("/Dest"))
-                {
-                    destObj = outline.Elements["/Dest"];
-                }
-                else if (outline.Elements.ContainsKey("/A"))
+                if (outline.Elements.ContainsKey("/A"))
                 {
                     var actionObj = Dereference(outline.Elements["/A"]);
                     if (actionObj is PdfSharp.Pdf.PdfDictionary actionDict &&
                         actionDict.Elements.ContainsKey("/D"))
                     {
-                        destObj = actionDict.Elements["/D"];
+                        string actionType = actionDict.Elements.ContainsKey("/S")
+                            ? actionDict.Elements["/S"]?.ToString() ?? string.Empty
+                            : string.Empty;
+
+                        if (string.IsNullOrEmpty(actionType) ||
+                            string.Equals(actionType, "/GoTo", StringComparison.OrdinalIgnoreCase))
+                        {
+                            destObj = actionDict.Elements["/D"];
+                        }
                     }
+                }
+
+                if (destObj == null && outline.Elements.ContainsKey("/Dest"))
+                {
+                    destObj = outline.Elements["/Dest"];
                 }
 
                 if (destObj != null)

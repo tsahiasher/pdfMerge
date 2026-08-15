@@ -98,6 +98,16 @@
                         </StackPanel>
                     </Button>
 
+                    <CheckBox x:Name="ChkPreserveBookmarks"
+                              Content="Bookmarks"
+                              IsChecked="False"
+                              Foreground="#E2E8F0"
+                              FontSize="13"
+                              VerticalAlignment="Center"
+                              Margin="0,0,10,0"
+                              Cursor="Hand"
+                              ToolTip="Recreate and include bookmarks in the saved PDF from source documents"/>
+
                     <Button x:Name="BtnMergeSave" Click="BtnMergeSave_Click" Style="{StaticResource SuccessButtonStyle}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="💾 " FontSize="14"/>

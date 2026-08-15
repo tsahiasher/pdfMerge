@@ -1019,18 +1019,7 @@ namespace pdfMerge
                 return;
             }
 
-            bool recreateBookmarks = false;
-            if (PdfService.HasBookmarks(selectedPages))
-            {
-                var answer = MessageBox.Show(
-                    this,
-                    "The source document contains bookmarks based on section numbers.\n\nWould you like to recreate the bookmarks in the saved PDF based on the document content?",
-                    "Recreate Bookmarks?",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
-
-                recreateBookmarks = (answer == MessageBoxResult.Yes);
-            }
+            bool recreateBookmarks = ChkPreserveBookmarks.IsChecked == true;
 
             var dialog = new SaveFileDialog
             {
@@ -1082,18 +1071,7 @@ namespace pdfMerge
             }
 
             var pagesToSave = Pages.ToList();
-            bool recreateBookmarks = false;
-            if (PdfService.HasBookmarks(pagesToSave))
-            {
-                var answer = MessageBox.Show(
-                    this,
-                    "The source document contains bookmarks based on section numbers.\n\nWould you like to recreate the bookmarks in the saved PDF based on the document content?",
-                    "Recreate Bookmarks?",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
-
-                recreateBookmarks = (answer == MessageBoxResult.Yes);
-            }
+            bool recreateBookmarks = ChkPreserveBookmarks.IsChecked == true;
 
             var dialog = new SaveFileDialog
             {
