@@ -24,6 +24,8 @@ namespace pdfMerge.Services
             for (int i = 0; i < files.Count; i++)
             {
                 files[i].Order = i + 1;
+                files[i].CanMoveUp = (i > 0);
+                files[i].CanMoveDown = (i < files.Count - 1);
             }
         }
 

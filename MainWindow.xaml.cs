@@ -115,12 +115,23 @@ namespace pdfMerge
             if (e.Data.GetDataPresent("PdfPageItems"))
             {
                 e.Effects = DragDropEffects.Move;
+                Mouse.OverrideCursor = pdfMerge.Helpers.CursorUtility.ClosedHand;
                 e.Handled = true;
                 return;
             }
 
             e.Effects = DragDropEffects.None;
             e.Handled = true;
+        }
+
+        private void Window_GiveFeedback(object sender, GiveFeedbackEventArgs e)
+        {
+            if (_isDraggingPages)
+            {
+                e.UseDefaultCursors = false;
+                Mouse.OverrideCursor = pdfMerge.Helpers.CursorUtility.ClosedHand;
+                e.Handled = true;
+            }
         }
 
         private async void Window_Drop(object sender, DragEventArgs e)
@@ -260,6 +271,8 @@ namespace pdfMerge
 
         private void UpdateDocumentColors()
         {
+            PageReorderService.ReindexFilesOrder(Files);
+
             for (int i = 0; i < Files.Count; i++)
             {
                 var fileItem = Files[i];
@@ -625,9 +638,43 @@ namespace pdfMerge
             }
         }
 
+        private void HeaderBorder_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is FrameworkElement elem && elem.DataContext is PdfPageItem pageItem)
+            {
+                // Check if user clicked directly on the CheckBox to avoid double-toggling
+                bool isCheckBoxClick = e.OriginalSource is CheckBox ||
+                    (e.OriginalSource is DependencyObject depObj && FindVisualParent<CheckBox>(depObj) != null);
+
+                if (!isCheckBoxClick)
+                {
+                    pageItem.IsSelected = !pageItem.IsSelected;
+                    e.Handled = true;
+                }
+            }
+        }
+
+        private static T? FindVisualParent<T>(DependencyObject child) where T : DependencyObject
+        {
+            DependencyObject parent = VisualTreeHelper.GetParent(child);
+            while (parent != null)
+            {
+                if (parent is T typedParent) return typedParent;
+                parent = VisualTreeHelper.GetParent(parent);
+            }
+            return null;
+        }
+
         private void ListBoxItem_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             _dragStartPoint = e.GetPosition(null);
+        }
+
+        private void ListBoxItem_GiveFeedback(object sender, GiveFeedbackEventArgs e)
+        {
+            e.UseDefaultCursors = false;
+            Mouse.OverrideCursor = pdfMerge.Helpers.CursorUtility.ClosedHand;
+            e.Handled = true;
         }
 
         private void ListBoxItem_MouseMove(object sender, MouseEventArgs e)
@@ -642,11 +689,10 @@ namespace pdfMerge
                 {
                     if (sender is ListBoxItem item && item.DataContext is PdfPageItem clickedPage)
                     {
+                        // Select grabbed page (adding to any existing selection)
+                        clickedPage.IsSelected = true;
+
                         var draggedItems = Pages.Where(p => p.IsSelected).ToList();
-                        if (draggedItems.Count == 0 || !draggedItems.Contains(clickedPage))
-                        {
-                            draggedItems = new List<PdfPageItem> { clickedPage };
-                        }
 
                         if (draggedItems.Count > 0)
                         {
@@ -668,7 +714,15 @@ namespace pdfMerge
                             GhostCard.Visibility = Visibility.Visible;
 
                             DataObject dragData = new DataObject("PdfPageItems", draggedItems);
-                            DragDrop.DoDragDrop(item, dragData, DragDropEffects.Move);
+                            Mouse.OverrideCursor = pdfMerge.Helpers.CursorUtility.ClosedHand;
+                            try
+                            {
+                                DragDrop.DoDragDrop(item, dragData, DragDropEffects.Move);
+                            }
+                            finally
+                            {
+                                Mouse.OverrideCursor = null;
+                            }
 
                             ResetDraggedItemsState();
                             _isDraggingPages = false;
@@ -684,6 +738,7 @@ namespace pdfMerge
             if (e.Data.GetDataPresent("PdfPageItems"))
             {
                 e.Effects = DragDropEffects.Move;
+                Mouse.OverrideCursor = pdfMerge.Helpers.CursorUtility.ClosedHand;
 
                 ScrollViewer? scrollViewer = GetScrollViewer(LstPages);
                 if (scrollViewer != null)

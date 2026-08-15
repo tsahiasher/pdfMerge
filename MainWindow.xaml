@@ -4,13 +4,14 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:pdfMerge"
+        xmlns:helpers="clr-namespace:pdfMerge.Helpers"
         mc:Ignorable="d"
         Title="PDF Merge &amp; Page Manager" Height="780" Width="1360"
         MinHeight="600" MinWidth="1050"
         WindowStartupLocation="CenterScreen"
         Icon="pdfMerge.ico"
         Background="#0F172A" Foreground="#F8FAFC"
-        AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver">
+        AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver" GiveFeedback="Window_GiveFeedback">
 
     <Window.Resources>
         <!-- Modern ScrollBar Style (window-scoped to avoid global side effects) -->
@@ -105,7 +106,6 @@
                               FontSize="13"
                               VerticalAlignment="Center"
                               Margin="0,0,10,0"
-                              Cursor="Hand"
                               ToolTip="Recreate and include bookmarks in the saved PDF from source documents"/>
 
                     <Button x:Name="BtnMergeSave" Click="BtnMergeSave_Click" Style="{StaticResource SuccessButtonStyle}">
@@ -187,10 +187,10 @@
 
                                         <!-- Reorder & Remove Buttons -->
                                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0">
-                                            <Button Click="BtnMoveFileUp_Click" Style="{StaticResource IconButtonLessStyle}" Padding="5,2" Margin="0,0,3,0" ToolTip="Move Up">
+                                            <Button Click="BtnMoveFileUp_Click" IsEnabled="{Binding CanMoveUp}" Style="{StaticResource IconButtonLessStyle}" Padding="5,2" Margin="0,0,3,0" ToolTip="Move Up">
                                                 <TextBlock Text="▲" FontSize="10"/>
                                             </Button>
-                                            <Button Click="BtnMoveFileDown_Click" Style="{StaticResource IconButtonLessStyle}" Padding="5,2" Margin="0,0,3,0" ToolTip="Move Down">
+                                            <Button Click="BtnMoveFileDown_Click" IsEnabled="{Binding CanMoveDown}" Style="{StaticResource IconButtonLessStyle}" Padding="5,2" Margin="0,0,3,0" ToolTip="Move Down">
                                                 <TextBlock Text="▼" FontSize="10"/>
                                             </Button>
                                             <Button Click="BtnRemoveFile_Click" Style="{StaticResource DangerButtonStyle}" Padding="5,2" ToolTip="Remove File">
@@ -333,6 +333,7 @@
                                 <Setter Property="BorderThickness" Value="0"/>
                                 <EventSetter Event="PreviewMouseLeftButtonDown" Handler="ListBoxItem_PreviewMouseLeftButtonDown"/>
                                 <EventSetter Event="MouseMove" Handler="ListBoxItem_MouseMove"/>
+                                <EventSetter Event="GiveFeedback" Handler="ListBoxItem_GiveFeedback"/>
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ListBoxItem">
@@ -346,8 +347,8 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <!-- THUMBNAIL CARD BORDER (Color distinguishes source document) -->
-                                <Border x:Name="cardBorder" Width="{Binding CardWidth}" Height="{Binding CardHeight}" Background="#1E293B" BorderBrush="{Binding DocumentColorHex}" BorderThickness="3" CornerRadius="10" Cursor="Hand">
-                                    <Grid Margin="8">
+                                <Border x:Name="cardBorder" Width="{Binding CardWidth}" Height="{Binding CardHeight}" Background="#1E293B" BorderBrush="{Binding DocumentColorHex}" BorderThickness="2.5" CornerRadius="10" Cursor="{x:Static helpers:CursorUtility.OpenHand}">
+                                    <Grid Margin="6">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
                                             <!-- Card Header -->
@@ -357,27 +358,29 @@
                                             <!-- Card Toolbar -->
                                         </Grid.RowDefinitions>
 
-                                        <!-- CARD HEADER -->
-                                        <Grid Grid.Row="0" Margin="0,0,0,6">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
+                                        <!-- CARD TOP HEADER SECTION CONTAINER -->
+                                        <Border x:Name="headerBorder" Grid.Row="0" Background="#0F172A" CornerRadius="6" Padding="6,4" Margin="0,0,0,6" Cursor="Hand" PreviewMouseLeftButtonDown="HeaderBorder_PreviewMouseLeftButtonDown">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
 
-                                            <!-- TOP-LEFT SELECTION CHECKBOX -->
-                                            <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,6,0" Cursor="Hand" ToolTip="Select Page"/>
+                                                <!-- TOP-LEFT SELECTION CHECKBOX -->
+                                                <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,6,0" ToolTip="Select Page"/>
 
-                                            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                                <!-- Original page number badge -->
-                                                <Border x:Name="pageBadge" Background="{Binding DocumentColorHex}" CornerRadius="4" Padding="6,2">
-                                                    <TextBlock Text="{Binding OriginalPageNumber, StringFormat='Orig. {0}'}" FontSize="11" FontWeight="Bold" Foreground="White"/>
-                                                </Border>
-                                            </StackPanel>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                    <!-- Original page number badge -->
+                                                    <Border x:Name="pageBadge" Background="{Binding DocumentColorHex}" CornerRadius="4" Padding="6,2">
+                                                        <TextBlock Text="{Binding OriginalPageNumber, StringFormat='Orig. {0}'}" FontSize="11" FontWeight="Bold" Foreground="White"/>
+                                                    </Border>
+                                                </StackPanel>
 
-                                            <!-- Source file badge -->
-                                            <TextBlock Grid.Column="2" Text="{Binding SourceFileName}" FontSize="10" Foreground="{Binding DocumentColorHex}" FontWeight="Bold" TextTrimming="CharacterEllipsis" MaxWidth="75" HorizontalAlignment="Right" VerticalAlignment="Center" ToolTip="{Binding SourceFilePath}"/>
-                                        </Grid>
+                                                <!-- Source file badge -->
+                                                <TextBlock x:Name="txtSourceFileName" Grid.Column="2" Text="{Binding SourceFileName}" FontSize="10" Foreground="{Binding DocumentColorHex}" FontWeight="Bold" TextTrimming="CharacterEllipsis" MaxWidth="75" HorizontalAlignment="Right" VerticalAlignment="Center" ToolTip="{Binding SourceFilePath}"/>
+                                            </Grid>
+                                        </Border>
 
                                         <!-- THUMBNAIL CONTAINER -->
                                         <Border Grid.Row="1" Background="#0F172A" CornerRadius="6" Margin="0,0,0,6" ClipToBounds="True">
@@ -436,10 +439,11 @@
                                 </Border>
 
                                 <DataTemplate.Triggers>
-                                    <!-- Visual selection trigger bound directly to IsSelected model -->
+                                    <!-- Visual selection trigger: wider document-colored border + blue top header section background -->
                                     <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                        <Setter TargetName="cardBorder" Property="Background" Value="#0F2942"/>
-                                        <Setter TargetName="cardBorder" Property="BorderThickness" Value="4.5"/>
+                                        <Setter TargetName="cardBorder" Property="BorderThickness" Value="5"/>
+                                        <Setter TargetName="headerBorder" Property="Background" Value="#2563EB"/>
+                                        <Setter TargetName="txtSourceFileName" Property="Foreground" Value="#F8FAFC"/>
                                     </DataTrigger>
                                     <!-- Hide card container from grid during dragging -->
                                     <DataTrigger Binding="{Binding IsBeingDragged}" Value="True">

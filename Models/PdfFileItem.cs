@@ -65,6 +65,21 @@ namespace pdfMerge.Models
             set => SetProperty(ref _order, value);
         }
 
+        private bool _canMoveUp;
+        private bool _canMoveDown;
+
+        public bool CanMoveUp
+        {
+            get => _canMoveUp;
+            set => SetProperty(ref _canMoveUp, value);
+        }
+
+        public bool CanMoveDown
+        {
+            get => _canMoveDown;
+            set => SetProperty(ref _canMoveDown, value);
+        }
+
         public string FileSizeFormatted
         {
             get

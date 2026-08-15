@@ -24,6 +24,8 @@
 
   <ItemGroup>
     <Resource Include="pdfMerge.ico" />
+    <Resource Include="Cursors\openhand.cur" />
+    <Resource Include="Cursors\closedhand.cur" />
   </ItemGroup>
 
 </Project>
