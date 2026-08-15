@@ -226,6 +226,7 @@ namespace pdfMerge
                 }
 
                 PageReorderService.ReindexSequenceNumbers(Pages);
+                UpdateDocumentColors();
                 UpdateUIState();
                 SetLoadingState(false, $"Added {newlyAddedPages.Count} page(s). Rendering thumbnails...");
 
@@ -240,6 +241,35 @@ namespace pdfMerge
             {
                 MessageBox.Show(this, $"Error loading files: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 SetLoadingState(false, "Failed to load files");
+            }
+        }
+
+        private static readonly string[] DocumentColorPalette = new[]
+        {
+            "#0EA5E9", // Vibrant Sky Blue / Cyan
+            "#10B981", // Emerald Green
+            "#F59E0B", // Amber Gold
+            "#A855F7", // Purple / Violet
+            "#EC4899", // Pink / Rose
+            "#14B8A6", // Teal
+            "#F97316", // Bright Orange
+            "#6366F1", // Indigo
+            "#84CC16", // Lime
+            "#E11D48"  // Crimson / Rose Red
+        };
+
+        private void UpdateDocumentColors()
+        {
+            for (int i = 0; i < Files.Count; i++)
+            {
+                var fileItem = Files[i];
+                string color = DocumentColorPalette[i % DocumentColorPalette.Length];
+                fileItem.DocumentColorHex = color;
+
+                foreach (var pageItem in Pages.Where(p => p.SourceFilePath.Equals(fileItem.FilePath, StringComparison.OrdinalIgnoreCase)))
+                {
+                    pageItem.DocumentColorHex = color;
+                }
             }
         }
 
@@ -308,6 +338,7 @@ namespace pdfMerge
                 Files.Remove(fileItem);
                 PageReorderService.ReindexFilesOrder(Files);
                 PageReorderService.ReindexSequenceNumbers(Pages);
+                UpdateDocumentColors();
                 UpdateUIState();
 
                 // GC.Collect/WaitForPendingFinalizers removed (Rec #10) — the runtime handles collection automatically
@@ -328,6 +359,7 @@ namespace pdfMerge
                     Files.Move(index, index - 1);
                     PageReorderService.ReindexFilesOrder(Files);
                     PageReorderService.RebuildPagesFromFilesOrder(Pages, Files);
+                    UpdateDocumentColors();
                 }
             }
         }
@@ -344,6 +376,7 @@ namespace pdfMerge
                     Files.Move(index, index + 1);
                     PageReorderService.ReindexFilesOrder(Files);
                     PageReorderService.RebuildPagesFromFilesOrder(Pages, Files);
+                    UpdateDocumentColors();
                 }
             }
         }

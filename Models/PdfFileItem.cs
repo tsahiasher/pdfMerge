@@ -10,6 +10,13 @@ namespace pdfMerge.Models
         private int _pageCount;
         private long _fileSizeBytes;
         private int _order;
+        private string _documentColorHex = "#0EA5E9";
+
+        public string DocumentColorHex
+        {
+            get => _documentColorHex;
+            set => SetProperty(ref _documentColorHex, value);
+        }
 
         public string FilePath
         {

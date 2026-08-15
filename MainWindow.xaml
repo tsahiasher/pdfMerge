@@ -153,7 +153,7 @@
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Border Background="#1E293B" BorderBrush="#334155" BorderThickness="1" CornerRadius="8" Padding="12,10">
+                                <Border Background="#1E293B" BorderBrush="{Binding DocumentColorHex}" BorderThickness="2" CornerRadius="8" Padding="12,10">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
@@ -162,7 +162,7 @@
                                         </Grid.ColumnDefinitions>
 
                                         <!-- Order Badge -->
-                                        <Border Grid.Column="0" Width="24" Height="24" CornerRadius="12" Background="#0EA5E9" Margin="0,0,10,0">
+                                        <Border Grid.Column="0" Width="24" Height="24" CornerRadius="12" Background="{Binding DocumentColorHex}" Margin="0,0,10,0">
                                             <TextBlock Text="{Binding Order}" FontWeight="Bold" FontSize="11" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
 
@@ -335,8 +335,8 @@
 
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <!-- THUMBNAIL CARD BORDER -->
-                                <Border x:Name="cardBorder" Width="{Binding CardWidth}" Height="{Binding CardHeight}" Background="#1E293B" BorderBrush="#334155" BorderThickness="2" CornerRadius="10" Cursor="Hand">
+                                <!-- THUMBNAIL CARD BORDER (Color distinguishes source document) -->
+                                <Border x:Name="cardBorder" Width="{Binding CardWidth}" Height="{Binding CardHeight}" Background="#1E293B" BorderBrush="{Binding DocumentColorHex}" BorderThickness="3" CornerRadius="10" Cursor="Hand">
                                     <Grid Margin="8">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -360,13 +360,13 @@
 
                                             <StackPanel Grid.Column="1" Orientation="Horizontal">
                                                 <!-- Original page number badge -->
-                                                <Border x:Name="pageBadge" Background="#0EA5E9" CornerRadius="4" Padding="6,2">
+                                                <Border x:Name="pageBadge" Background="{Binding DocumentColorHex}" CornerRadius="4" Padding="6,2">
                                                     <TextBlock Text="{Binding OriginalPageNumber, StringFormat='Orig. {0}'}" FontSize="11" FontWeight="Bold" Foreground="White"/>
                                                 </Border>
                                             </StackPanel>
 
                                             <!-- Source file badge -->
-                                            <TextBlock Grid.Column="2" Text="{Binding SourceFileName}" FontSize="10" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" MaxWidth="75" HorizontalAlignment="Right" VerticalAlignment="Center" ToolTip="{Binding SourceFilePath}"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding SourceFileName}" FontSize="10" Foreground="{Binding DocumentColorHex}" FontWeight="Bold" TextTrimming="CharacterEllipsis" MaxWidth="75" HorizontalAlignment="Right" VerticalAlignment="Center" ToolTip="{Binding SourceFilePath}"/>
                                         </Grid>
 
                                         <!-- THUMBNAIL CONTAINER -->
@@ -426,12 +426,10 @@
                                 </Border>
 
                                 <DataTemplate.Triggers>
-                                    <!-- Visual blue/cyan border trigger bound directly to IsSelected model -->
+                                    <!-- Visual selection trigger bound directly to IsSelected model -->
                                     <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                        <Setter TargetName="cardBorder" Property="BorderBrush" Value="#0EA5E9"/>
                                         <Setter TargetName="cardBorder" Property="Background" Value="#0F2942"/>
-                                        <Setter TargetName="cardBorder" Property="BorderThickness" Value="2.5"/>
-                                        <Setter TargetName="pageBadge" Property="Background" Value="#10B981"/>
+                                        <Setter TargetName="cardBorder" Property="BorderThickness" Value="4.5"/>
                                     </DataTrigger>
                                     <!-- Hide card container from grid during dragging -->
                                     <DataTrigger Binding="{Binding IsBeingDragged}" Value="True">

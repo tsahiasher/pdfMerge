@@ -19,6 +19,13 @@ namespace pdfMerge.Models
         private bool _isLoading = true;
         private bool _isBeingDragged;
         private AppliedSignature? _pageSignature;
+        private string _documentColorHex = "#0EA5E9";
+
+        public string DocumentColorHex
+        {
+            get => _documentColorHex;
+            set => SetProperty(ref _documentColorHex, value);
+        }
 
         // Dynamic Card Zoom Dimensions
         private double _cardWidth = 205;
@@ -189,6 +196,7 @@ namespace pdfMerge.Models
                 IsLoading = false,
                 IsBeingDragged = false,
                 PageSignature = this.PageSignature?.Clone(),
+                DocumentColorHex = this.DocumentColorHex,
                 CardWidth = this.CardWidth,
                 CardHeight = this.CardHeight,
                 ImageMaxHeight = this.ImageMaxHeight,
