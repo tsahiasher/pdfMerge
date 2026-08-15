@@ -190,6 +190,44 @@ namespace pdfMerge.Views
             }
         }
 
+        private void BtnSplitOddPages_Click(object sender, RoutedEventArgs e)
+        {
+            if (_allPages.Count == 0) return;
+
+            var oddPages = _allPages.Where(p => p.DisplayPageNumber % 2 != 0).ToList();
+            if (oddPages.Count == 0)
+            {
+                MessageBox.Show(this, "No odd pages found in the document.", "No Odd Pages", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            SplitRanges.Add(new SplitRangeItem
+            {
+                Name = $"Odd Pages ({oddPages.Count})",
+                RangeText = string.Join(",", oddPages.Select(p => p.DisplayPageNumber)),
+                Pages = oddPages
+            });
+        }
+
+        private void BtnSplitEvenPages_Click(object sender, RoutedEventArgs e)
+        {
+            if (_allPages.Count == 0) return;
+
+            var evenPages = _allPages.Where(p => p.DisplayPageNumber % 2 == 0).ToList();
+            if (evenPages.Count == 0)
+            {
+                MessageBox.Show(this, "No even pages found in the document.", "No Even Pages", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            SplitRanges.Add(new SplitRangeItem
+            {
+                Name = $"Even Pages ({evenPages.Count})",
+                RangeText = string.Join(",", evenPages.Select(p => p.DisplayPageNumber)),
+                Pages = evenPages
+            });
+        }
+
         private void BtnSplitEveryN_Click(object sender, RoutedEventArgs e)
         {
             if (_allPages.Count == 0) return;

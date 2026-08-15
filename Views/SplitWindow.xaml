@@ -100,6 +100,27 @@
                             </StackPanel>
                         </Button>
 
+                        <!-- ODD / EVEN PAGE PRESET BUTTONS -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Click="BtnSplitOddPages_Click" Style="{StaticResource SecondaryButtonStyle}" Grid.Column="0" ToolTip="Add split range containing all odd pages (1, 3, 5...)">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <TextBlock Text="1️⃣ " FontSize="12"/>
+                                    <TextBlock Text="Odd Pages"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Click="BtnSplitEvenPages_Click" Style="{StaticResource SecondaryButtonStyle}" Grid.Column="2" ToolTip="Add split range containing all even pages (2, 4, 6...)">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <TextBlock Text="2️⃣ " FontSize="12"/>
+                                    <TextBlock Text="Even Pages"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
                         <Grid Margin="0,0,0,8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
