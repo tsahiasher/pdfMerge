@@ -34,6 +34,13 @@ namespace pdfMerge
         private List<PageSnapshotState> _originalPagesSnapshot = new List<PageSnapshotState>();
         private List<PdfPageItem>? _currentDraggedGroup;
 
+        private DateTime _lastDialogClosedTimestamp = DateTime.MinValue;
+
+        private bool IsDialogCooldownActive()
+        {
+            return (DateTime.UtcNow - _lastDialogClosedTimestamp).TotalMilliseconds < 500;
+        }
+
         public ObservableCollection<PdfFileItem> Files { get; } = new ObservableCollection<PdfFileItem>();
         public ObservableCollection<PdfPageItem> Pages { get; } = new ObservableCollection<PdfPageItem>();
 
@@ -163,7 +170,10 @@ namespace pdfMerge
                 Title = "Select PDF or Image Files to Add"
             };
 
-            if (dialog.ShowDialog(this) == true)
+            bool? result = dialog.ShowDialog(this);
+            _lastDialogClosedTimestamp = DateTime.UtcNow;
+
+            if (result == true)
             {
                 await AddFilesAsync(dialog.FileNames);
             }
@@ -543,6 +553,12 @@ namespace pdfMerge
 
         private void LstPages_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            if (IsDialogCooldownActive())
+            {
+                e.Handled = true;
+                return;
+            }
+
             Point mousePos = e.GetPosition(LstPages);
 
             // Bypass marquee selection if clicking on ScrollBar controls
@@ -640,6 +656,12 @@ namespace pdfMerge
 
         private void HeaderBorder_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            if (IsDialogCooldownActive())
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (sender is FrameworkElement elem && elem.DataContext is PdfPageItem pageItem)
             {
                 // Check if user clicked directly on the CheckBox to avoid double-toggling
@@ -667,6 +689,12 @@ namespace pdfMerge
 
         private void ListBoxItem_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            if (IsDialogCooldownActive())
+            {
+                e.Handled = true;
+                return;
+            }
+
             _dragStartPoint = e.GetPosition(null);
         }
 
@@ -727,6 +755,11 @@ namespace pdfMerge
                             ResetDraggedItemsState();
                             _isDraggingPages = false;
                             GhostCard.Visibility = Visibility.Collapsed;
+
+                            if (draggedItems.Count == 1)
+                            {
+                                draggedItems[0].IsSelected = false;
+                            }
                         }
                     }
                 }
@@ -957,7 +990,10 @@ namespace pdfMerge
                     Owner = this
                 };
 
-                if (sigWindow.ShowDialog() == true && sigWindow.ResultSignature != null)
+                bool? sigResult = sigWindow.ShowDialog();
+                _lastDialogClosedTimestamp = DateTime.UtcNow;
+
+                if (sigResult == true && sigWindow.ResultSignature != null)
                 {
                     // #12: Just set the signature — the model computes the display thumbnail automatically
                     pageItem.PageSignature = sigWindow.ResultSignature;
@@ -995,7 +1031,10 @@ namespace pdfMerge
                 FileName = selectedPages.Count == 1 ? $"Page_{selectedPages[0].DisplayPageNumber}.png" : "ExportedPage.png"
             };
 
-            if (dialog.ShowDialog(this) == true)
+            bool? dialogResult = dialog.ShowDialog(this);
+            _lastDialogClosedTimestamp = DateTime.UtcNow;
+
+            if (dialogResult == true)
             {
                 bool isJpeg = Path.GetExtension(dialog.FileName).Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
                               Path.GetExtension(dialog.FileName).Equals(".jpeg", StringComparison.OrdinalIgnoreCase);
@@ -1057,7 +1096,10 @@ namespace pdfMerge
                 Owner = this
             };
 
-            if (previewWindow.ShowDialog() == true)
+            bool? previewResult = previewWindow.ShowDialog();
+            _lastDialogClosedTimestamp = DateTime.UtcNow;
+
+            if (previewResult == true)
             {
                 TxtStatus.Text = "Print job completed successfully";
             }
@@ -1083,7 +1125,10 @@ namespace pdfMerge
                 FileName = "SelectedPages.pdf"
             };
 
-            if (dialog.ShowDialog(this) == true)
+            bool? saveSelResult = dialog.ShowDialog(this);
+            _lastDialogClosedTimestamp = DateTime.UtcNow;
+
+            if (saveSelResult == true)
             {
                 SetLoadingState(true, "Merging and saving selected PDF pages...");
 
@@ -1115,6 +1160,7 @@ namespace pdfMerge
             };
 
             splitWindow.ShowDialog();
+            _lastDialogClosedTimestamp = DateTime.UtcNow;
         }
 
         private async void BtnMergeSave_Click(object sender, RoutedEventArgs e)
@@ -1135,7 +1181,10 @@ namespace pdfMerge
                 FileName = "MergedDocument.pdf"
             };
 
-            if (dialog.ShowDialog(this) == true)
+            bool? mergeResult = dialog.ShowDialog(this);
+            _lastDialogClosedTimestamp = DateTime.UtcNow;
+
+            if (mergeResult == true)
             {
                 SetLoadingState(true, "Merging document pages with lossless metadata rotation...");
 
