@@ -1213,15 +1213,25 @@ namespace pdfMerge
             TxtFileCount.Text = $"{Files.Count} file{(Files.Count == 1 ? "" : "s")}";
             TxtPageCountBadge.Text = $"{Pages.Count} Page{(Pages.Count == 1 ? "" : "s")}";
 
+            bool hasPages = Pages.Count > 0;
+            bool hasFiles = Files.Count > 0;
             int selectedCount = Pages.Count(p => p.IsSelected);
+            bool hasSelection = selectedCount > 0;
+
             TxtSelectedCountBadge.Text = selectedCount > 0 ? $"({selectedCount} selected)" : "(0 selected)";
 
-            bool hasPages = Pages.Count > 0;
             PnlEmptyState.Visibility = hasPages ? Visibility.Collapsed : Visibility.Visible;
             GridGalleryContainer.Visibility = hasPages ? Visibility.Visible : Visibility.Collapsed;
-            BtnMergeSave.IsEnabled = hasPages;
 
-            bool hasSelection = selectedCount > 0;
+            BtnClearAll.IsEnabled = hasFiles || hasPages;
+            BtnSplit.IsEnabled = hasPages;
+            PnlZoom.IsEnabled = hasPages;
+            SldZoom.IsEnabled = hasPages;
+            BtnSelectAll.IsEnabled = hasPages;
+            BtnDeselectAll.IsEnabled = hasSelection;
+            BtnMergeSave.IsEnabled = hasPages;
+            ChkPreserveBookmarks.IsEnabled = hasFiles;
+
             BtnRotateSelectedCW.IsEnabled = hasPages;
             BtnRotateSelectedCCW.IsEnabled = hasPages;
             BtnDeleteSelected.IsEnabled = hasSelection;
