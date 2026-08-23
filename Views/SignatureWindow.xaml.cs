@@ -41,12 +41,13 @@ namespace pdfMerge.Views
             InitializeComponent();
             _targetPage = page;
 
-            ImgPagePreview.Source = _targetPage.Thumbnail;
-            if (_targetPage.Rotation != 0)
+            BitmapSource? previewBmp = _targetPage.OriginalThumbnail;
+            if (previewBmp != null && _targetPage.Rotation != 0)
             {
-                ImgPagePreview.RenderTransformOrigin = new Point(0.5, 0.5);
-                ImgPagePreview.RenderTransform = new RotateTransform(_targetPage.Rotation);
+                previewBmp = pdfMerge.Helpers.BitmapUtilities.RotateBitmap(previewBmp, _targetPage.Rotation);
             }
+            ImgPagePreview.Source = previewBmp;
+            ImgPagePreview.RenderTransform = null;
 
             _signaturesFolderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "pdfMerge", "Signatures");
             Directory.CreateDirectory(_signaturesFolderPath);
@@ -157,21 +158,47 @@ namespace pdfMerge.Views
                 if (imgWidth <= 0) imgWidth = Math.Max(1, GridStep1Canvas.ActualWidth);
                 if (imgHeight <= 0) imgHeight = Math.Max(1, GridStep1Canvas.ActualHeight);
 
-                double relX = Math.Max(0, (rectX - imgOffset.X) / imgWidth);
-                double relY = Math.Max(0, (rectY - imgOffset.Y) / imgHeight);
-                double relW = Math.Min(1.0 - relX, rectW / imgWidth);
-                double relH = Math.Min(1.0 - relY, rectH / imgHeight);
+                double vx = Math.Max(0, (rectX - imgOffset.X) / imgWidth);
+                double vy = Math.Max(0, (rectY - imgOffset.Y) / imgHeight);
+                double vw = Math.Min(1.0 - vx, rectW / imgWidth);
+                double vh = Math.Min(1.0 - vy, rectH / imgHeight);
 
-                if (double.IsNaN(relX) || double.IsInfinity(relX)) relX = 0.1;
-                if (double.IsNaN(relY) || double.IsInfinity(relY)) relY = 0.1;
-                if (double.IsNaN(relW) || double.IsInfinity(relW) || relW <= 0) relW = 0.3;
-                if (double.IsNaN(relH) || double.IsInfinity(relH) || relH <= 0) relH = 0.15;
+                if (double.IsNaN(vx) || double.IsInfinity(vx)) vx = 0.1;
+                if (double.IsNaN(vy) || double.IsInfinity(vy)) vy = 0.1;
+                if (double.IsNaN(vw) || double.IsInfinity(vw) || vw <= 0) vw = 0.3;
+                if (double.IsNaN(vh) || double.IsInfinity(vh) || vh <= 0) vh = 0.15;
+
+                // Transform visual coordinates on rotated preview back to unrotated 0° base page coordinates
+                int rot = ((_targetPage.Rotation % 360) + 360) % 360;
+                double ux = vx, uy = vy, uw = vw, uh = vh;
+
+                switch (rot)
+                {
+                    case 90:
+                        ux = vy;
+                        uy = 1.0 - vx - vw;
+                        uw = vh;
+                        uh = vw;
+                        break;
+                    case 180:
+                        ux = 1.0 - vx - vw;
+                        uy = 1.0 - vy - vh;
+                        uw = vw;
+                        uh = vh;
+                        break;
+                    case 270:
+                        ux = 1.0 - vy - vh;
+                        uy = vx;
+                        uw = vh;
+                        uh = vw;
+                        break;
+                }
 
                 _relativePlacementRect = new Rect(
-                    Math.Clamp(relX, 0, 0.95),
-                    Math.Clamp(relY, 0, 0.95),
-                    Math.Clamp(relW, 0.01, 1.0),
-                    Math.Clamp(relH, 0.01, 1.0)
+                    Math.Clamp(ux, 0, 0.95),
+                    Math.Clamp(uy, 0, 0.95),
+                    Math.Clamp(uw, 0.01, 1.0),
+                    Math.Clamp(uh, 0.01, 1.0)
                 );
             }
             catch (Exception ex)
@@ -655,6 +682,13 @@ namespace pdfMerge.Views
             }
 
             BitmapSource finalSigBitmap = GetCurrentSignatureBitmap();
+
+            // Transform signature image to unrotated 0° base page orientation if page is currently rotated
+            int rot = ((_targetPage.Rotation % 360) + 360) % 360;
+            if (rot != 0)
+            {
+                finalSigBitmap = pdfMerge.Helpers.BitmapUtilities.RotateBitmap(finalSigBitmap, (360 - rot) % 360);
+            }
 
             ResultSignature = new AppliedSignature
             {

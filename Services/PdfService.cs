@@ -28,21 +28,45 @@ namespace pdfMerge.Services
     {
         private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
-            ".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"
+            ".png", ".jpg", ".jpeg", ".jfif", ".pjpeg", ".pjp",
+            ".bmp", ".dib", ".tif", ".tiff", ".webp", ".gif", ".ico", ".wmf", ".emf"
         };
 
         public static bool IsSupportedImageFile(string filePath)
         {
+            if (string.IsNullOrWhiteSpace(filePath)) return false;
             string ext = Path.GetExtension(filePath);
-            if (string.IsNullOrEmpty(ext)) return false;
-            return ImageExtensions.Contains(ext);
+            if (!string.IsNullOrEmpty(ext) && ImageExtensions.Contains(ext))
+            {
+                return true;
+            }
+
+            if (!string.Equals(ext, ".pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    using var stream = File.OpenRead(filePath);
+                    var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+                    return decoder.Frames.Count > 0;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+
+            return false;
         }
 
         public static bool IsSupportedFile(string filePath)
         {
+            if (string.IsNullOrWhiteSpace(filePath)) return false;
             string ext = Path.GetExtension(filePath);
-            if (string.IsNullOrEmpty(ext)) return false;
-            return string.Equals(ext, ".pdf", StringComparison.OrdinalIgnoreCase) || ImageExtensions.Contains(ext);
+            if (!string.IsNullOrEmpty(ext) && (string.Equals(ext, ".pdf", StringComparison.OrdinalIgnoreCase) || ImageExtensions.Contains(ext)))
+            {
+                return true;
+            }
+            return IsSupportedImageFile(filePath);
         }
 
         /// <summary>
@@ -205,15 +229,17 @@ namespace pdfMerge.Services
                         if (IsSupportedImageFile(fullSourcePath))
                         {
                             // Convert image to a high-resolution PDF page
-                            using var ximg = XImage.FromFile(fullSourcePath);
+                            using var ximg = CreateXImageFromFile(fullSourcePath);
                             var page = outputDocument.AddPage();
                             
                             // Set PDF page dimensions matching image aspect ratio
                             page.Width = XUnit.FromPoint(ximg.PointWidth);
                             page.Height = XUnit.FromPoint(ximg.PointHeight);
 
-                            using var gfx = XGraphics.FromPdfPage(page);
-                            gfx.DrawImage(ximg, 0, 0, page.Width.Point, page.Height.Point);
+                            using (var gfx = XGraphics.FromPdfPage(page))
+                            {
+                                gfx.DrawImage(ximg, 0, 0, page.Width.Point, page.Height.Point);
+                            }
 
                             if (item.Rotation != 0)
                             {
@@ -915,6 +941,29 @@ namespace pdfMerge.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error drawing signature onto PDF page: {ex.Message}");
+            }
+        }
+
+        private static XImage CreateXImageFromFile(string filePath)
+        {
+            try
+            {
+                return XImage.FromFile(filePath);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"XImage.FromFile direct load failed for '{filePath}': {ex.Message}. Falling back to WPF BitmapDecoder stream...");
+                using var fileStream = File.OpenRead(filePath);
+                var decoder = BitmapDecoder.Create(fileStream, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
+                BitmapFrame frame = decoder.Frames[0];
+
+                var ms = new MemoryStream();
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(frame);
+                encoder.Save(ms);
+                ms.Position = 0;
+
+                return XImage.FromStream(ms);
             }
         }
     }

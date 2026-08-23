@@ -13,7 +13,8 @@ namespace pdfMerge.Services
     public static class PageRenderService
     {
         /// <summary>
-        /// Renders a full composite page bitmap including rotation, signature overlay, and optional grayscale conversion.
+        /// Renders a full composite page bitmap including signature overlay, rotation, and optional grayscale conversion.
+        /// Signature is composited FIRST onto unrotated base page so that rotation rotates both page and signature together.
         /// </summary>
         public static async Task<BitmapSource?> RenderCompositePageAsync(PdfPageItem item, uint targetWidth, bool isMonochrome = false, CancellationToken token = default)
         {
@@ -29,14 +30,16 @@ namespace pdfMerge.Services
 
             if (bitmap != null)
             {
-                if (item.Rotation != 0)
-                {
-                    bitmap = BitmapUtilities.RotateBitmap(bitmap, item.Rotation);
-                }
-
+                // 1. Composite signature onto unrotated base page first
                 if (item.PageSignature != null)
                 {
                     bitmap = BitmapUtilities.RenderSignatureOverlayOnThumbnail(bitmap, item.PageSignature);
+                }
+
+                // 2. Rotate the composite page bitmap (page + signature) by item.Rotation
+                if (item.Rotation != 0)
+                {
+                    bitmap = BitmapUtilities.RotateBitmap(bitmap, item.Rotation);
                 }
 
                 if (isMonochrome)
@@ -50,6 +53,7 @@ namespace pdfMerge.Services
 
         /// <summary>
         /// Synchronously renders a composite page for printing paginator.
+        /// Signature is composited FIRST onto unrotated base page so that rotation rotates both page and signature together.
         /// </summary>
         public static BitmapSource? RenderCompositePageSync(PdfPageItem item, uint targetWidth, bool isMonochrome = false)
         {
@@ -61,14 +65,16 @@ namespace pdfMerge.Services
 
             if (bitmap != null)
             {
-                if (item.Rotation != 0)
-                {
-                    bitmap = BitmapUtilities.RotateBitmap(bitmap, item.Rotation);
-                }
-
+                // 1. Composite signature onto unrotated base page first
                 if (item.PageSignature != null)
                 {
                     bitmap = BitmapUtilities.RenderSignatureOverlayOnThumbnail(bitmap, item.PageSignature);
+                }
+
+                // 2. Rotate the composite page bitmap (page + signature) by item.Rotation
+                if (item.Rotation != 0)
+                {
+                    bitmap = BitmapUtilities.RotateBitmap(bitmap, item.Rotation);
                 }
 
                 if (isMonochrome)
