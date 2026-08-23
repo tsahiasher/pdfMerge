@@ -13,6 +13,7 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using pdfMerge.Helpers;
 using pdfMerge.Models;
@@ -43,6 +44,13 @@ namespace pdfMerge
             return (DateTime.UtcNow - _lastDialogClosedTimestamp).TotalMilliseconds < 500;
         }
 
+        private async Task DrainPendingInputAsync()
+        {
+            _lastDialogClosedTimestamp = DateTime.UtcNow;
+            Mouse.Capture(null);
+            await Dispatcher.Yield(DispatcherPriority.Input);
+        }
+
         public ObservableCollection<PdfFileItem> Files { get; } = new ObservableCollection<PdfFileItem>();
         public ObservableCollection<PdfPageItem> Pages { get; } = new ObservableCollection<PdfPageItem>();
 
@@ -58,12 +66,21 @@ namespace pdfMerge
             UpdateUIState();
         }
 
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            try
+            {
+                _loadCts?.Cancel();
+                _loadCts?.Dispose();
+                _loadCts = null;
+            }
+            catch { }
+
+            base.OnClosing(e);
+        }
+
         protected override void OnClosed(EventArgs e)
         {
-            _loadCts?.Cancel();
-            _loadCts?.Dispose();
-            _loadCts = null;
-
             Pages.CollectionChanged -= Pages_CollectionChanged;
             foreach (var item in Pages)
             {
@@ -73,10 +90,21 @@ namespace pdfMerge
             Files.Clear();
 
             base.OnClosed(e);
-            Application.Current.Shutdown();
 
-            // Bypass Environment.Exit(0) DLL detaching deadlocks and forcefully kill the process.
-            System.Diagnostics.Process.GetCurrentProcess().Kill();
+            // Arm background safety watchdog: if COM/loader lock stalls exit > 1.5s, force exit
+            var watchdog = new Thread(() =>
+            {
+                Thread.Sleep(1500);
+                Environment.Exit(0);
+            })
+            {
+                IsBackground = true
+            };
+            watchdog.Start();
+
+            // Clean WPF dispatcher shutdown and fast runtime exit
+            Application.Current.Shutdown();
+            Environment.Exit(0);
         }
 
         private void Pages_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
@@ -173,7 +201,7 @@ namespace pdfMerge
             };
 
             bool? result = dialog.ShowDialog(this);
-            _lastDialogClosedTimestamp = DateTime.UtcNow;
+            await DrainPendingInputAsync();
 
             if (result == true)
             {
@@ -251,6 +279,7 @@ namespace pdfMerge
                 PageReorderService.ReindexSequenceNumbers(Pages);
                 UpdateDocumentColors();
                 UpdateBookmarkAvailability();
+                PageSelectionService.DeselectAll(Pages);
                 UpdateUIState();
                 SetLoadingState(false, $"Added {newlyAddedPages.Count} page(s). Rendering thumbnails...");
 
@@ -995,7 +1024,7 @@ namespace pdfMerge
             }
         }
 
-        private void BtnSignPage_Click(object sender, RoutedEventArgs e)
+        private async void BtnSignPage_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.DataContext is PdfPageItem pageItem)
             {
@@ -1005,7 +1034,7 @@ namespace pdfMerge
                 };
 
                 bool? sigResult = sigWindow.ShowDialog();
-                _lastDialogClosedTimestamp = DateTime.UtcNow;
+                await DrainPendingInputAsync();
 
                 if (sigResult == true && sigWindow.ResultSignature != null)
                 {
@@ -1046,7 +1075,7 @@ namespace pdfMerge
             };
 
             bool? dialogResult = dialog.ShowDialog(this);
-            _lastDialogClosedTimestamp = DateTime.UtcNow;
+            await DrainPendingInputAsync();
 
             if (dialogResult == true)
             {
@@ -1097,7 +1126,7 @@ namespace pdfMerge
 
         // RotateBitmap moved to Helpers/BitmapUtilities.cs (Rec #1)
 
-        private void BtnPrint_Click(object sender, RoutedEventArgs e)
+        private async void BtnPrint_Click(object sender, RoutedEventArgs e)
         {
             if (Pages.Count == 0)
             {
@@ -1111,7 +1140,7 @@ namespace pdfMerge
             };
 
             bool? previewResult = previewWindow.ShowDialog();
-            _lastDialogClosedTimestamp = DateTime.UtcNow;
+            await DrainPendingInputAsync();
 
             if (previewResult == true)
             {
@@ -1140,7 +1169,7 @@ namespace pdfMerge
             };
 
             bool? saveSelResult = dialog.ShowDialog(this);
-            _lastDialogClosedTimestamp = DateTime.UtcNow;
+            await DrainPendingInputAsync();
 
             if (saveSelResult == true)
             {
@@ -1160,7 +1189,7 @@ namespace pdfMerge
             }
         }
 
-        private void BtnSplit_Click(object sender, RoutedEventArgs e)
+        private async void BtnSplit_Click(object sender, RoutedEventArgs e)
         {
             if (Pages.Count == 0)
             {
@@ -1174,7 +1203,7 @@ namespace pdfMerge
             };
 
             splitWindow.ShowDialog();
-            _lastDialogClosedTimestamp = DateTime.UtcNow;
+            await DrainPendingInputAsync();
         }
 
         private async void BtnMergeSave_Click(object sender, RoutedEventArgs e)
@@ -1196,7 +1225,7 @@ namespace pdfMerge
             };
 
             bool? mergeResult = dialog.ShowDialog(this);
-            _lastDialogClosedTimestamp = DateTime.UtcNow;
+            await DrainPendingInputAsync();
 
             if (mergeResult == true)
             {
