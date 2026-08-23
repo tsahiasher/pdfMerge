@@ -314,6 +314,7 @@ namespace pdfMerge.Views
                     string folder = Path.GetDirectoryName(dialog.FileName) ?? Environment.CurrentDirectory;
                     string baseName = Path.GetFileNameWithoutExtension(dialog.FileName);
 
+                    var usedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     int count = 0;
                     foreach (var part in SplitRanges)
                     {
@@ -322,7 +323,18 @@ namespace pdfMerge.Views
                         string sanitizedLabel = string.Concat(part.Name.Split(Path.GetInvalidFileNameChars())).Trim();
                         if (string.IsNullOrWhiteSpace(sanitizedLabel)) sanitizedLabel = $"Part_{count + 1}";
 
-                        string targetPath = Path.Combine(folder, $"{baseName}_{sanitizedLabel}.pdf");
+                        string candidateName = $"{baseName}_{sanitizedLabel}.pdf";
+                        string targetPath = Path.Combine(folder, candidateName);
+
+                        // If duplicate part label exists, auto-append unique index
+                        int dupIndex = 2;
+                        while (usedFileNames.Contains(targetPath))
+                        {
+                            candidateName = $"{baseName}_{sanitizedLabel}_{dupIndex}.pdf";
+                            targetPath = Path.Combine(folder, candidateName);
+                            dupIndex++;
+                        }
+                        usedFileNames.Add(targetPath);
 
                         await PdfService.MergeAndSavePdfAsync(part.Pages, targetPath);
                         count++;

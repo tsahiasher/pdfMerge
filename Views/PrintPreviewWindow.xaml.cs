@@ -430,13 +430,14 @@ namespace pdfMerge.Views
                 return;
             }
 
+            LocalPrintServer? printServer = null;
             try
             {
                 var printDialog = new PrintDialog();
 
                 if (CmbPrinters != null && CmbPrinters.SelectedItem is PrintQueueItem selectedItem && !string.IsNullOrEmpty(selectedItem.FullName))
                 {
-                    using var printServer = new LocalPrintServer();
+                    printServer = new LocalPrintServer();
                     printDialog.PrintQueue = printServer.GetPrintQueue(selectedItem.FullName);
                 }
 
@@ -481,6 +482,10 @@ namespace pdfMerge.Views
             catch (Exception ex)
             {
                 MessageBox.Show(this, $"Failed to print document: {ex.Message}", "Print Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                printServer?.Dispose();
             }
         }
 

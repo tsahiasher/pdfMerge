@@ -139,34 +139,29 @@ namespace pdfMerge.Views
                 if (double.IsNaN(rectW) || rectW <= 0) rectW = 100;
                 if (double.IsNaN(rectH) || rectH <= 0) rectH = 50;
 
-                Point imgOffset = new Point(0, 0);
-                try
+                double gridW = GridStep1Canvas.ActualWidth;
+                double gridH = GridStep1Canvas.ActualHeight;
+                if (gridW <= 0) gridW = 800;
+                if (gridH <= 0) gridH = 600;
+
+                double srcW = 1.0, srcH = 1.0;
+                if (ImgPagePreview.Source is BitmapSource bmpSrc && bmpSrc.PixelWidth > 0 && bmpSrc.PixelHeight > 0)
                 {
-                    if (ImgPagePreview.IsVisible && GridStep1Canvas.IsAncestorOf(ImgPagePreview))
-                    {
-                        imgOffset = ImgPagePreview.TranslatePoint(new Point(0, 0), GridStep1Canvas);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Error translating image offset: {ex.Message}");
+                    srcW = bmpSrc.PixelWidth;
+                    srcH = bmpSrc.PixelHeight;
                 }
 
-                double imgWidth = ImgPagePreview.ActualWidth;
-                double imgHeight = ImgPagePreview.ActualHeight;
+                // Calculate actual uniform aspect-fit image layout inside GridStep1Canvas
+                double scale = Math.Min(gridW / srcW, gridH / srcH);
+                double renderedW = srcW * scale;
+                double renderedH = srcH * scale;
+                double offsetX = (gridW - renderedW) / 2.0;
+                double offsetY = (gridH - renderedH) / 2.0;
 
-                if (imgWidth <= 0) imgWidth = Math.Max(1, GridStep1Canvas.ActualWidth);
-                if (imgHeight <= 0) imgHeight = Math.Max(1, GridStep1Canvas.ActualHeight);
-
-                double vx = Math.Max(0, (rectX - imgOffset.X) / imgWidth);
-                double vy = Math.Max(0, (rectY - imgOffset.Y) / imgHeight);
-                double vw = Math.Min(1.0 - vx, rectW / imgWidth);
-                double vh = Math.Min(1.0 - vy, rectH / imgHeight);
-
-                if (double.IsNaN(vx) || double.IsInfinity(vx)) vx = 0.1;
-                if (double.IsNaN(vy) || double.IsInfinity(vy)) vy = 0.1;
-                if (double.IsNaN(vw) || double.IsInfinity(vw) || vw <= 0) vw = 0.3;
-                if (double.IsNaN(vh) || double.IsInfinity(vh) || vh <= 0) vh = 0.15;
+                double vx = Math.Clamp((rectX - offsetX) / renderedW, 0, 0.99);
+                double vy = Math.Clamp((rectY - offsetY) / renderedH, 0, 0.99);
+                double vw = Math.Clamp(rectW / renderedW, 0.01, 1.0 - vx);
+                double vh = Math.Clamp(rectH / renderedH, 0.01, 1.0 - vy);
 
                 // Transform visual coordinates on rotated preview back to unrotated 0° base page coordinates
                 int rot = ((_targetPage.Rotation % 360) + 360) % 360;
@@ -533,7 +528,13 @@ namespace pdfMerge.Views
         {
             try
             {
-                BitmapSource sigBitmap = GetCurrentSignatureBitmap();
+                BitmapSource? sigBitmap = GetCurrentSignatureBitmap();
+                if (sigBitmap == null)
+                {
+                    MessageBox.Show(this, "Please provide a valid signature before saving to library.", "Cannot Save", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
                 string filePath = Path.Combine(_signaturesFolderPath, $"Signature_{DateTime.Now:yyyyMMdd_HHmmss}.png");
 
                 using (var stream = new FileStream(filePath, FileMode.Create))
@@ -629,7 +630,7 @@ namespace pdfMerge.Views
 
         #region Output Bitmap Rendering
 
-        private BitmapSource GetCurrentSignatureBitmap()
+        private BitmapSource? GetCurrentSignatureBitmap()
         {
             if (LstSavedSignatures.SelectedItem is SavedSignatureItem selected)
             {
@@ -642,14 +643,17 @@ namespace pdfMerge.Views
                     return RenderVisualToBitmap(GridTypedPreview, 600, 130);
 
                 case 2: // Upload
-                    if (_loadedImageSignature != null) return _loadedImageSignature;
-                    return RenderVisualToBitmap(PnlUploadInstructions, 600, 180);
+                    return _loadedImageSignature;
 
                 case 3: // Symbol
                     return RenderVisualToBitmap(GridSymbolPreview, 600, 150);
 
                 case 0: // Draw
                 default:
+                    if (InkSignCanvas.Strokes.Count == 0 && _loadedImageSignature != null)
+                    {
+                        return _loadedImageSignature;
+                    }
                     return RenderVisualToBitmap(GridDrawCanvasArea, 600, 220);
             }
         }
@@ -675,13 +679,36 @@ namespace pdfMerge.Views
 
         private void BtnFinishStep2_Click(object sender, RoutedEventArgs e)
         {
-            if (_activeTabIndex == 0 && InkSignCanvas.Strokes.Count == 0 && _loadedImageSignature == null && LstSavedSignatures.SelectedItem == null)
+            if (LstSavedSignatures.SelectedItem == null)
             {
-                MessageBox.Show(this, "Please draw a signature, type a signature, upload an image, or select a saved signature.", "Empty Signature", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
+                if (_activeTabIndex == 0 && InkSignCanvas.Strokes.Count == 0 && _loadedImageSignature == null)
+                {
+                    MessageBox.Show(this, "Please draw a signature on the canvas.", "Empty Signature", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                else if (_activeTabIndex == 1 && (string.IsNullOrWhiteSpace(TxtTypedSignature.Text) || TxtTypedSignature.Text == "Signature Preview"))
+                {
+                    MessageBox.Show(this, "Please type your signature.", "Empty Signature", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                else if (_activeTabIndex == 2 && _loadedImageSignature == null)
+                {
+                    MessageBox.Show(this, "Please choose or drop an image file for your signature.", "No Image Selected", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                else if (_activeTabIndex == 3 && string.IsNullOrEmpty(_selectedSymbol))
+                {
+                    MessageBox.Show(this, "Please select a symbol stamp.", "No Symbol Selected", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
             }
 
-            BitmapSource finalSigBitmap = GetCurrentSignatureBitmap();
+            BitmapSource? finalSigBitmap = GetCurrentSignatureBitmap();
+            if (finalSigBitmap == null)
+            {
+                MessageBox.Show(this, "Could not create signature bitmap. Please try again.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
 
             // Transform signature image to unrotated 0° base page orientation if page is currently rotated
             int rot = ((_targetPage.Rotation % 360) + 360) % 360;

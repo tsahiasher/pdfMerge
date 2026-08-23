@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using pdfMerge.Models;
 
@@ -171,8 +173,42 @@ namespace pdfMerge.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error rendering PDF thumbnail for {fullPath} page {pageIndex}: {ex.Message}");
-                return null;
+                return CreatePlaceholderThumbnail(pageIndex, Path.GetFileName(fullPath), targetWidth);
             }
+        }
+
+        private static BitmapSource CreatePlaceholderThumbnail(int pageIndex, string fileName, uint targetWidth)
+        {
+            int width = (int)targetWidth;
+            int height = (int)(targetWidth * 1.414);
+            if (width <= 0) width = 350;
+            if (height <= 0) height = 495;
+
+            var visual = new DrawingVisual();
+            using (DrawingContext dc = visual.RenderOpen())
+            {
+                dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(24, 34, 50)), null, new Rect(0, 0, width, height));
+                dc.DrawRectangle(null, new Pen(new SolidColorBrush(Color.FromRgb(51, 65, 85)), 2), new Rect(4, 4, width - 8, height - 8));
+
+                var text = new FormattedText(
+                    $"📄\nPage {pageIndex + 1}\n{fileName}",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    FlowDirection.LeftToRight,
+                    new Typeface("Segoe UI"),
+                    16,
+                    new SolidColorBrush(Color.FromRgb(148, 163, 184)),
+                    96);
+                text.MaxTextWidth = Math.Max(50, width - 24);
+                text.TextAlignment = TextAlignment.Center;
+
+                double textY = (height - text.Height) / 2.0;
+                dc.DrawText(text, new Point(12, Math.Max(12, textY)));
+            }
+
+            var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+            rtb.Render(visual);
+            rtb.Freeze();
+            return rtb;
         }
 
         /// <summary>
@@ -219,6 +255,11 @@ namespace pdfMerge.Services
                 using var outputDocument = new PdfSharpDocument();
                 var sourceDocsCache = new Dictionary<string, PdfSharpDocument>(StringComparer.OrdinalIgnoreCase);
                 var pageMap = new Dictionary<(string FilePath, int PageIndex), PdfSharpPage>();
+                var openDisposables = new List<IDisposable>();
+
+                string fullOutputPath = Path.GetFullPath(outputPath);
+                string outputDir = Path.GetDirectoryName(fullOutputPath) ?? Environment.CurrentDirectory;
+                string tempOutputPath = Path.Combine(outputDir, $".tmp_{Guid.NewGuid():N}_{Path.GetFileName(fullOutputPath)}");
 
                 try
                 {
@@ -229,7 +270,7 @@ namespace pdfMerge.Services
                         if (IsSupportedImageFile(fullSourcePath))
                         {
                             // Convert image to a high-resolution PDF page
-                            using var ximg = CreateXImageFromFile(fullSourcePath);
+                            var ximg = CreateXImageFromFile(fullSourcePath, openDisposables);
                             var page = outputDocument.AddPage();
                             
                             // Set PDF page dimensions matching image aspect ratio
@@ -248,10 +289,13 @@ namespace pdfMerge.Services
 
                             if (item.PageSignature != null)
                             {
-                                DrawSignatureOntoPdfPage(page, item.PageSignature);
+                                DrawSignatureOntoPdfPage(page, item.PageSignature, openDisposables);
                             }
 
-                            pageMap[(fullSourcePath, item.OriginalPageIndex)] = page;
+                            if (!pageMap.ContainsKey((fullSourcePath, item.OriginalPageIndex)))
+                            {
+                                pageMap[(fullSourcePath, item.OriginalPageIndex)] = page;
+                            }
                         }
                         else
                         {
@@ -273,10 +317,13 @@ namespace pdfMerge.Services
 
                                 if (item.PageSignature != null)
                                 {
-                                    DrawSignatureOntoPdfPage(page, item.PageSignature);
+                                    DrawSignatureOntoPdfPage(page, item.PageSignature, openDisposables);
                                 }
 
-                                pageMap[(fullSourcePath, item.OriginalPageIndex)] = page;
+                                if (!pageMap.ContainsKey((fullSourcePath, item.OriginalPageIndex)))
+                                {
+                                    pageMap[(fullSourcePath, item.OriginalPageIndex)] = page;
+                                }
                             }
                         }
                     }
@@ -286,14 +333,38 @@ namespace pdfMerge.Services
                         RecreateBookmarks(outputDocument, sourceDocsCache, pageMap);
                     }
 
-                    string fullOutputPath = Path.GetFullPath(outputPath);
-                    outputDocument.Save(fullOutputPath);
+                    // Save to temporary file first (Atomic File Save)
+                    outputDocument.Save(tempOutputPath);
+
+                    // Close all source document handles before replacing in case output target was an input file
+                    foreach (var doc in sourceDocsCache.Values)
+                    {
+                        doc.Dispose();
+                    }
+                    sourceDocsCache.Clear();
+
+                    if (File.Exists(fullOutputPath))
+                    {
+                        File.Replace(tempOutputPath, fullOutputPath, null);
+                    }
+                    else
+                    {
+                        File.Move(tempOutputPath, fullOutputPath);
+                    }
                 }
                 finally
                 {
                     foreach (var doc in sourceDocsCache.Values)
                     {
                         doc.Dispose();
+                    }
+                    foreach (var disposable in openDisposables)
+                    {
+                        try { disposable.Dispose(); } catch { }
+                    }
+                    if (File.Exists(tempOutputPath))
+                    {
+                        try { File.Delete(tempOutputPath); } catch { }
                     }
                 }
             });
@@ -918,17 +989,19 @@ namespace pdfMerge.Services
             return item;
         }
 
-        private static void DrawSignatureOntoPdfPage(PdfSharpPage page, AppliedSignature sig)
+        private static void DrawSignatureOntoPdfPage(PdfSharpPage page, AppliedSignature sig, List<IDisposable> disposables)
         {
             try
             {
-                using var sigStream = new MemoryStream();
+                var sigStream = new MemoryStream();
                 var encoder = new PngBitmapEncoder();
                 encoder.Frames.Add(BitmapFrame.Create(sig.SignatureImage));
                 encoder.Save(sigStream);
                 sigStream.Position = 0;
+                disposables.Add(sigStream);
 
-                using var sigXImg = XImage.FromStream(sigStream);
+                var sigXImg = XImage.FromStream(sigStream);
+                disposables.Add(sigXImg);
 
                 double sigX = page.Width.Point * sig.RelX;
                 double sigY = page.Height.Point * sig.RelY;
@@ -944,11 +1017,13 @@ namespace pdfMerge.Services
             }
         }
 
-        private static XImage CreateXImageFromFile(string filePath)
+        private static XImage CreateXImageFromFile(string filePath, List<IDisposable> disposables)
         {
             try
             {
-                return XImage.FromFile(filePath);
+                var ximg = XImage.FromFile(filePath);
+                disposables.Add(ximg);
+                return ximg;
             }
             catch (Exception ex)
             {
@@ -962,8 +1037,11 @@ namespace pdfMerge.Services
                 encoder.Frames.Add(frame);
                 encoder.Save(ms);
                 ms.Position = 0;
+                disposables.Add(ms);
 
-                return XImage.FromStream(ms);
+                var ximg = XImage.FromStream(ms);
+                disposables.Add(ximg);
+                return ximg;
             }
         }
     }

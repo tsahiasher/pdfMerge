@@ -33,8 +33,9 @@ namespace pdfMerge.Models
 
             var pageItem = _pages[pageNumber];
 
-            // Render page on demand using unified rendering pipeline (Priority 7)
-            BitmapSource? bitmap = PageRenderService.RenderCompositePageSync(pageItem, 1600, _isMonochrome);
+            // Render page on demand using unified rendering pipeline at 300 DPI print quality
+            uint targetPrintWidth = (uint)Math.Clamp(_pageSize.Width * 3.125, 2400, 4800);
+            BitmapSource? bitmap = PageRenderService.RenderCompositePageSync(pageItem, targetPrintWidth, _isMonochrome);
 
             var visual = new DrawingVisual();
             using (DrawingContext dc = visual.RenderOpen())

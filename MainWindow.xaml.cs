@@ -33,6 +33,8 @@ namespace pdfMerge
         // Snapshot of original pages state for Revert All feature (Requirement 1)
         private List<PageSnapshotState> _originalPagesSnapshot = new List<PageSnapshotState>();
         private List<PdfPageItem>? _currentDraggedGroup;
+        private readonly SemaphoreSlim _thumbnailRenderSemaphore = new SemaphoreSlim(3);
+        private bool _hasSourceBookmarks = false;
 
         private DateTime _lastDialogClosedTimestamp = DateTime.MinValue;
 
@@ -248,6 +250,7 @@ namespace pdfMerge
 
                 PageReorderService.ReindexSequenceNumbers(Pages);
                 UpdateDocumentColors();
+                UpdateBookmarkAvailability();
                 UpdateUIState();
                 SetLoadingState(false, $"Added {newlyAddedPages.Count} page(s). Rendering thumbnails...");
 
@@ -263,6 +266,11 @@ namespace pdfMerge
                 MessageBox.Show(this, $"Error loading files: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 SetLoadingState(false, "Failed to load files");
             }
+        }
+
+        private void UpdateBookmarkAvailability()
+        {
+            _hasSourceBookmarks = PdfService.HasBookmarks(Pages);
         }
 
         private static readonly string[] DocumentColorPalette = new[]
@@ -298,7 +306,6 @@ namespace pdfMerge
 
         private async Task LoadThumbnailsInBackgroundAsync(List<PdfPageItem> pageItems, CancellationToken token)
         {
-            using var semaphore = new SemaphoreSlim(3); // Limit to 3 concurrent renders
             var tasks = new List<Task>();
 
             foreach (var item in pageItems)
@@ -307,7 +314,7 @@ namespace pdfMerge
 
                 tasks.Add(Task.Run(async () =>
                 {
-                    await semaphore.WaitAsync(token);
+                    await _thumbnailRenderSemaphore.WaitAsync(token);
                     try
                     {
                         if (token.IsCancellationRequested) return;
@@ -334,7 +341,7 @@ namespace pdfMerge
                     }
                     finally
                     {
-                        semaphore.Release();
+                        try { _thumbnailRenderSemaphore.Release(); } catch { }
                     }
                 }, token));
             }
@@ -362,6 +369,7 @@ namespace pdfMerge
                 PageReorderService.ReindexFilesOrder(Files);
                 PageReorderService.ReindexSequenceNumbers(Pages);
                 UpdateDocumentColors();
+                UpdateBookmarkAvailability();
                 UpdateUIState();
 
                 // GC.Collect/WaitForPendingFinalizers removed (Rec #10) — the runtime handles collection automatically
@@ -430,6 +438,7 @@ namespace pdfMerge
                 Files.Clear();
                 Pages.Clear();
                 _originalPagesSnapshot.Clear();
+                _hasSourceBookmarks = false;
                 UpdateUIState();
 
                 TxtStatus.Text = "Cleared all files";
@@ -487,6 +496,8 @@ namespace pdfMerge
                 }
 
                 PageReorderService.ReindexSequenceNumbers(Pages);
+                UpdateDocumentColors();
+                UpdateBookmarkAvailability();
                 UpdateUIState();
 
                 // If any restored page needs a thumbnail, asynchronously load in background
@@ -755,11 +766,6 @@ namespace pdfMerge
                             ResetDraggedItemsState();
                             _isDraggingPages = false;
                             GhostCard.Visibility = Visibility.Collapsed;
-
-                            if (draggedItems.Count == 1)
-                            {
-                                draggedItems[0].IsSelected = false;
-                            }
                         }
                     }
                 }
@@ -809,17 +815,25 @@ namespace pdfMerge
 
                     if (targetIdxInPages >= 0 && !orderedDragged.Contains(targetPage))
                     {
-                        foreach (var page in orderedDragged)
-                        {
-                            Pages.Remove(page);
-                        }
+                        int currentMinIdx = orderedDragged.Min(p => Pages.IndexOf(p));
+                        int currentMaxIdx = orderedDragged.Max(p => Pages.IndexOf(p));
+                        int newInsert = targetIdxInPages + (insertBefore ? 0 : 1);
 
-                        int newInsert = Math.Min(Pages.IndexOf(targetPage) + (insertBefore ? 0 : 1), Pages.Count);
-                        for (int i = 0; i < orderedDragged.Count; i++)
+                        // Only reorder collection if target position has actually moved across boundaries
+                        if (newInsert < currentMinIdx || newInsert > currentMaxIdx + 1)
                         {
-                            Pages.Insert(Math.Min(newInsert + i, Pages.Count), orderedDragged[i]);
+                            foreach (var page in orderedDragged)
+                            {
+                                Pages.Remove(page);
+                            }
+
+                            int targetPos = Math.Min(Pages.IndexOf(targetPage) + (insertBefore ? 0 : 1), Pages.Count);
+                            for (int i = 0; i < orderedDragged.Count; i++)
+                            {
+                                Pages.Insert(Math.Min(targetPos + i, Pages.Count), orderedDragged[i]);
+                            }
+                            PageReorderService.ReindexSequenceNumbers(Pages);
                         }
-                        PageReorderService.ReindexSequenceNumbers(Pages);
                     }
                 }
 
@@ -1230,7 +1244,10 @@ namespace pdfMerge
             BtnSelectAll.IsEnabled = hasPages;
             BtnDeselectAll.IsEnabled = hasSelection;
             BtnMergeSave.IsEnabled = hasPages;
-            ChkPreserveBookmarks.IsEnabled = hasFiles;
+            ChkPreserveBookmarks.IsEnabled = _hasSourceBookmarks;
+            ChkPreserveBookmarks.ToolTip = _hasSourceBookmarks
+                ? "Recreate and include bookmarks in the saved PDF from source documents"
+                : "No bookmarks found in loaded source files";
 
             BtnRotateSelectedCW.IsEnabled = hasPages;
             BtnRotateSelectedCCW.IsEnabled = hasPages;
