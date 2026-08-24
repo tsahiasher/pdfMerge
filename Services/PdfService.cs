@@ -287,9 +287,9 @@ namespace pdfMerge.Services
                                 page.Rotate = (page.Rotate + item.Rotation) % 360;
                             }
 
-                            if (item.PageSignature != null)
+                            foreach (var sig in item.PageSignatures)
                             {
-                                DrawSignatureOntoPdfPage(page, item.PageSignature, openDisposables);
+                                DrawSignatureOntoPdfPage(page, sig, openDisposables);
                             }
 
                             if (!pageMap.ContainsKey((fullSourcePath, item.OriginalPageIndex)))
@@ -315,9 +315,9 @@ namespace pdfMerge.Services
                                     page.Rotate = (page.Rotate + item.Rotation) % 360;
                                 }
 
-                                if (item.PageSignature != null)
+                                foreach (var sig in item.PageSignatures)
                                 {
-                                    DrawSignatureOntoPdfPage(page, item.PageSignature, openDisposables);
+                                    DrawSignatureOntoPdfPage(page, sig, openDisposables);
                                 }
 
                                 if (!pageMap.ContainsKey((fullSourcePath, item.OriginalPageIndex)))

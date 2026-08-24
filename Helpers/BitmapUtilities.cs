@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -23,6 +24,11 @@ namespace pdfMerge.Helpers
 
         public static BitmapSource RenderSignatureOverlayOnThumbnail(BitmapSource baseThumb, AppliedSignature sig)
         {
+            return RenderSignatureOverlayOnThumbnail(baseThumb, new[] { sig });
+        }
+
+        public static BitmapSource RenderSignatureOverlayOnThumbnail(BitmapSource baseThumb, IEnumerable<AppliedSignature> signatures)
+        {
             int width = baseThumb.PixelWidth;
             int height = baseThumb.PixelHeight;
 
@@ -31,15 +37,24 @@ namespace pdfMerge.Helpers
             {
                 dc.DrawImage(baseThumb, new Rect(0, 0, width, height));
 
-                double sigX = width * sig.RelX;
-                double sigY = height * sig.RelY;
-                double sigW = width * sig.RelWidth;
-                double sigH = height * sig.RelHeight;
+                foreach (var sig in signatures)
+                {
+                    double relX = System.Math.Clamp(sig.RelX, 0, 0.99);
+                    double relY = System.Math.Clamp(sig.RelY, 0, 0.99);
+                    double relW = System.Math.Clamp(sig.RelWidth, 0.01, 1.0 - relX);
+                    double relH = System.Math.Clamp(sig.RelHeight, 0.01, 1.0 - relY);
 
-                dc.DrawImage(sig.SignatureImage, new Rect(sigX, sigY, sigW, sigH));
+                    double sigX = width * relX;
+                    double sigY = height * relY;
+                    double sigW = width * relW;
+                    double sigH = height * relH;
+
+                    dc.DrawImage(sig.SignatureImage, new Rect(sigX, sigY, sigW, sigH));
+                }
             }
 
-            var rtb = new RenderTargetBitmap(width, height, baseThumb.DpiX, baseThumb.DpiY, PixelFormats.Pbgra32);
+            // Always render at standard 96 DPI to maintain exact 1:1 Pixel-to-DIP mapping without DPI scaling distortion
+            var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
             rtb.Render(visual);
             rtb.Freeze();
             return rtb;

@@ -41,7 +41,7 @@ namespace pdfMerge.Views
             InitializeComponent();
             _targetPage = page;
 
-            BitmapSource? previewBmp = _targetPage.OriginalThumbnail;
+            BitmapSource? previewBmp = _targetPage.Thumbnail;
             if (previewBmp != null && _targetPage.Rotation != 0)
             {
                 previewBmp = pdfMerge.Helpers.BitmapUtilities.RotateBitmap(previewBmp, _targetPage.Rotation);
@@ -189,12 +189,12 @@ namespace pdfMerge.Views
                         break;
                 }
 
-                _relativePlacementRect = new Rect(
-                    Math.Clamp(ux, 0, 0.95),
-                    Math.Clamp(uy, 0, 0.95),
-                    Math.Clamp(uw, 0.01, 1.0),
-                    Math.Clamp(uh, 0.01, 1.0)
-                );
+                double safeX = Math.Clamp(ux, 0, 0.99);
+                double safeY = Math.Clamp(uy, 0, 0.99);
+                double safeW = Math.Clamp(uw, 0.01, 1.0 - safeX);
+                double safeH = Math.Clamp(uh, 0.01, 1.0 - safeY);
+
+                _relativePlacementRect = new Rect(safeX, safeY, safeW, safeH);
             }
             catch (Exception ex)
             {

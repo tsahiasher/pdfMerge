@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace pdfMerge.Models
 {
     public class PageSnapshotState
@@ -6,6 +8,6 @@ namespace pdfMerge.Models
         public int OriginalPageIndex { get; set; }
         public int OriginalDisplayPageNumber { get; set; }
         public int InitialRotation { get; set; }
-        public AppliedSignature? InitialSignature { get; set; }
+        public List<AppliedSignature> InitialSignatures { get; set; } = new List<AppliedSignature>();
     }
 }

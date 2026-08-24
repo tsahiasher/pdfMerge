@@ -1,4 +1,5 @@
 using System;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Media.Imaging;
 using pdfMerge.Helpers;
@@ -18,8 +19,24 @@ namespace pdfMerge.Models
         private bool _isSelected;
         private bool _isLoading = true;
         private bool _isBeingDragged;
-        private AppliedSignature? _pageSignature;
+        private readonly ObservableCollection<AppliedSignature> _pageSignatures = new ObservableCollection<AppliedSignature>();
         private string _documentColorHex = "#0EA5E9";
+
+        public PdfPageItem()
+        {
+            _pageSignatures.CollectionChanged += (s, e) =>
+            {
+                InvalidateThumbnailCache();
+            };
+        }
+
+        public ObservableCollection<AppliedSignature> PageSignatures => _pageSignatures;
+
+        public void InvalidateThumbnailCache()
+        {
+            _cachedDisplayThumbnail = null;
+            OnPropertyChanged(nameof(Thumbnail));
+        }
 
         public string DocumentColorHex
         {
@@ -92,14 +109,13 @@ namespace pdfMerge.Models
             {
                 if (SetProperty(ref _originalThumbnail, value))
                 {
-                    _cachedDisplayThumbnail = null; // Invalidate display cache
-                    OnPropertyChanged(nameof(Thumbnail));
+                    InvalidateThumbnailCache();
                 }
             }
         }
 
         /// <summary>
-        /// Display thumbnail: composites signature overlay onto OriginalThumbnail if present.
+        /// Display thumbnail: composites signature overlays onto OriginalThumbnail if present.
         /// XAML binds to this property. Do not set directly — set OriginalThumbnail instead.
         /// </summary>
         public BitmapSource? Thumbnail
@@ -107,12 +123,12 @@ namespace pdfMerge.Models
             get
             {
                 if (_originalThumbnail == null) return null;
-                if (_pageSignature == null) return _originalThumbnail;
+                if (_pageSignatures.Count == 0) return _originalThumbnail;
 
                 // Return cached composite if available
                 if (_cachedDisplayThumbnail != null) return _cachedDisplayThumbnail;
 
-                _cachedDisplayThumbnail = BitmapUtilities.RenderSignatureOverlayOnThumbnail(_originalThumbnail, _pageSignature);
+                _cachedDisplayThumbnail = BitmapUtilities.RenderSignatureOverlayOnThumbnail(_originalThumbnail, _pageSignatures);
                 return _cachedDisplayThumbnail;
             }
         }
@@ -133,19 +149,6 @@ namespace pdfMerge.Models
         {
             get => _isBeingDragged;
             set => SetProperty(ref _isBeingDragged, value);
-        }
-
-        public AppliedSignature? PageSignature
-        {
-            get => _pageSignature;
-            set
-            {
-                if (SetProperty(ref _pageSignature, value))
-                {
-                    _cachedDisplayThumbnail = null; // Invalidate display cache
-                    OnPropertyChanged(nameof(Thumbnail));
-                }
-            }
         }
 
         public double CardWidth
@@ -184,7 +187,7 @@ namespace pdfMerge.Models
 
         public PdfPageItem CloneSnapshot()
         {
-            return new PdfPageItem
+            var item = new PdfPageItem
             {
                 _id = this._id,
                 SourceFilePath = this.SourceFilePath,
@@ -195,13 +198,19 @@ namespace pdfMerge.Models
                 IsSelected = false,
                 IsLoading = false,
                 IsBeingDragged = false,
-                PageSignature = this.PageSignature?.Clone(),
                 DocumentColorHex = this.DocumentColorHex,
                 CardWidth = this.CardWidth,
                 CardHeight = this.CardHeight,
                 ImageMaxHeight = this.ImageMaxHeight,
                 ImageMaxWidth = this.ImageMaxWidth
             };
+
+            foreach (var sig in this.PageSignatures)
+            {
+                item.PageSignatures.Add(sig.Clone());
+            }
+
+            return item;
         }
     }
 }

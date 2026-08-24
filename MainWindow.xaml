@@ -47,7 +47,7 @@
                     </Border>
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="PDF Merger &amp; Page Manager" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC"/>
-                        <TextBlock Text="v1.0" FontSize="11" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,1,0,0"/>
+                        <TextBlock Text="v1.2" FontSize="11" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,1,0,0"/>
                     </StackPanel>
                 </StackPanel>
 
@@ -359,7 +359,7 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <!-- THUMBNAIL CARD BORDER (Color distinguishes source document) -->
-                                <Border x:Name="cardBorder" Width="{Binding CardWidth}" Height="{Binding CardHeight}" Background="#1E293B" BorderBrush="{Binding DocumentColorHex}" BorderThickness="2.5" CornerRadius="10" Cursor="{x:Static helpers:CursorUtility.OpenHand}">
+                                <Border x:Name="cardBorder" Width="{Binding CardWidth}" Height="{Binding CardHeight}" Background="#1E293B" BorderBrush="{Binding DocumentColorHex}" BorderThickness="2.5" CornerRadius="10" Cursor="{x:Static helpers:CursorUtility.OpenHand}" UseLayoutRounding="True" SnapsToDevicePixels="True">
                                     <Grid Margin="6">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>

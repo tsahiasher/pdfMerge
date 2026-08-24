@@ -30,10 +30,10 @@ namespace pdfMerge.Services
 
             if (bitmap != null)
             {
-                // 1. Composite signature onto unrotated base page first
-                if (item.PageSignature != null)
+                // 1. Composite signatures onto unrotated base page first
+                if (item.PageSignatures.Count > 0)
                 {
-                    bitmap = BitmapUtilities.RenderSignatureOverlayOnThumbnail(bitmap, item.PageSignature);
+                    bitmap = BitmapUtilities.RenderSignatureOverlayOnThumbnail(bitmap, item.PageSignatures);
                 }
 
                 // 2. Rotate the composite page bitmap (page + signature) by item.Rotation
@@ -65,10 +65,10 @@ namespace pdfMerge.Services
 
             if (bitmap != null)
             {
-                // 1. Composite signature onto unrotated base page first
-                if (item.PageSignature != null)
+                // 1. Composite signatures onto unrotated base page first
+                if (item.PageSignatures.Count > 0)
                 {
-                    bitmap = BitmapUtilities.RenderSignatureOverlayOnThumbnail(bitmap, item.PageSignature);
+                    bitmap = BitmapUtilities.RenderSignatureOverlayOnThumbnail(bitmap, item.PageSignatures);
                 }
 
                 // 2. Rotate the composite page bitmap (page + signature) by item.Rotation

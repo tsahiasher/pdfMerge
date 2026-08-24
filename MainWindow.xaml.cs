@@ -66,21 +66,12 @@ namespace pdfMerge
             UpdateUIState();
         }
 
-        protected override void OnClosing(CancelEventArgs e)
-        {
-            try
-            {
-                _loadCts?.Cancel();
-                _loadCts?.Dispose();
-                _loadCts = null;
-            }
-            catch { }
-
-            base.OnClosing(e);
-        }
-
         protected override void OnClosed(EventArgs e)
         {
+            _loadCts?.Cancel();
+            _loadCts?.Dispose();
+            _loadCts = null;
+
             Pages.CollectionChanged -= Pages_CollectionChanged;
             foreach (var item in Pages)
             {
@@ -90,21 +81,10 @@ namespace pdfMerge
             Files.Clear();
 
             base.OnClosed(e);
-
-            // Arm background safety watchdog: if COM/loader lock stalls exit > 1.5s, force exit
-            var watchdog = new Thread(() =>
-            {
-                Thread.Sleep(1500);
-                Environment.Exit(0);
-            })
-            {
-                IsBackground = true
-            };
-            watchdog.Start();
-
-            // Clean WPF dispatcher shutdown and fast runtime exit
             Application.Current.Shutdown();
-            Environment.Exit(0);
+
+            // Bypass Environment.Exit(0) DLL detaching deadlocks and forcefully kill the process.
+            System.Diagnostics.Process.GetCurrentProcess().Kill();
         }
 
         private void Pages_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
@@ -270,7 +250,7 @@ namespace pdfMerge
                             OriginalPageIndex = pageIdx,
                             OriginalDisplayPageNumber = pageItem.DisplayPageNumber,
                             InitialRotation = 0,
-                            InitialSignature = null
+                            InitialSignatures = new List<AppliedSignature>()
                         });
                         newlyAddedPages.Add(pageItem);
                     }
@@ -508,12 +488,19 @@ namespace pdfMerge
                         OriginalPageIndex = snap.OriginalPageIndex,
                         DisplayPageNumber = snap.OriginalDisplayPageNumber,
                         Rotation = snap.InitialRotation,
-                        PageSignature = snap.InitialSignature?.Clone(),
                         IsSelected = false,
                         IsBeingDragged = false,
                         OriginalThumbnail = existingThumb,
                         IsLoading = existingThumb == null
                     };
+
+                    if (snap.InitialSignatures.Count > 0)
+                    {
+                        foreach (var sig in snap.InitialSignatures)
+                        {
+                            restored.PageSignatures.Add(sig.Clone());
+                        }
+                    }
 
                     ApplyZoomDimensionsToItem(restored, (int)SldZoom.Value);
                     Pages.Add(restored);
@@ -1038,10 +1025,10 @@ namespace pdfMerge
 
                 if (sigResult == true && sigWindow.ResultSignature != null)
                 {
-                    // #12: Just set the signature — the model computes the display thumbnail automatically
-                    pageItem.PageSignature = sigWindow.ResultSignature;
+                    // Append signature to page's signatures collection (unlimited signatures per page)
+                    pageItem.PageSignatures.Add(sigWindow.ResultSignature);
 
-                    TxtStatus.Text = $"Applied signature to Page {pageItem.DisplayPageNumber}";
+                    TxtStatus.Text = $"Applied signature to Page {pageItem.DisplayPageNumber} ({pageItem.PageSignatures.Count} total)";
                 }
             }
         }
