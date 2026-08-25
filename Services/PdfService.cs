@@ -282,14 +282,16 @@ namespace pdfMerge.Services
                                 gfx.DrawImage(ximg, 0, 0, page.Width.Point, page.Height.Point);
                             }
 
-                            if (item.Rotation != 0)
-                            {
-                                page.Rotate = (page.Rotate + item.Rotation) % 360;
-                            }
+                            EmbedEditorDataOntoPdfPage(page, item.EditorData, openDisposables);
 
                             foreach (var sig in item.PageSignatures)
                             {
                                 DrawSignatureOntoPdfPage(page, sig, openDisposables);
+                            }
+
+                            if (item.Rotation != 0)
+                            {
+                                page.Rotate = (page.Rotate + item.Rotation) % 360;
                             }
 
                             if (!pageMap.ContainsKey((fullSourcePath, item.OriginalPageIndex)))
@@ -310,14 +312,16 @@ namespace pdfMerge.Services
                             {
                                 var page = outputDocument.AddPage(sourceDoc.Pages[item.OriginalPageIndex]);
 
-                                if (item.Rotation != 0)
-                                {
-                                    page.Rotate = (page.Rotate + item.Rotation) % 360;
-                                }
+                                EmbedEditorDataOntoPdfPage(page, item.EditorData, openDisposables);
 
                                 foreach (var sig in item.PageSignatures)
                                 {
                                     DrawSignatureOntoPdfPage(page, sig, openDisposables);
+                                }
+
+                                if (item.Rotation != 0)
+                                {
+                                    page.Rotate = (page.Rotate + item.Rotation) % 360;
                                 }
 
                                 if (!pageMap.ContainsKey((fullSourcePath, item.OriginalPageIndex)))
@@ -1042,6 +1046,236 @@ namespace pdfMerge.Services
                 var ximg = XImage.FromStream(ms);
                 disposables.Add(ximg);
                 return ximg;
+            }
+        }
+
+        private static void EmbedEditorDataOntoPdfPage(PdfSharpPage page, PageEditorData editorData, List<IDisposable> disposables)
+        {
+            if (editorData == null || !editorData.HasEdits) return;
+
+            try
+            {
+                double pw = page.Width.Point;
+                double ph = page.Height.Point;
+
+                using var gfx = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append);
+
+                // 1. Text Highlights
+                if (editorData.TextHighlights.Count > 0)
+                {
+                    var hlBrush = new XSolidBrush(XColor.FromArgb(102, 250, 204, 21)); // #FACC15 ~0.40 opacity
+                    foreach (var th in editorData.TextHighlights)
+                    {
+                        foreach (var lr in th.LineRects)
+                        {
+                            var (llx, lly, urx, ury) = EditorCoordinateService.NormalizedBaseRectToPdfRect(lr, pw, ph);
+                            double x = llx;
+                            double y = ph - ury;
+                            double w = urx - llx;
+                            double h = ury - lly;
+                            gfx.DrawRectangle(hlBrush, x, y, w, h);
+                        }
+                    }
+                }
+
+                // 2. Freehand Highlights
+                if (editorData.FreehandHighlights.Count > 0)
+                {
+                    foreach (var fh in editorData.FreehandHighlights)
+                    {
+                        if (fh.Points.Count < 2) continue;
+
+                        var hlColor = XColor.FromArgb(97, 250, 204, 21); // ~0.38 opacity
+                        double penWidthPt = Math.Max(2, (fh.DisplayPixelThickness > 0 ? fh.DisplayPixelThickness : 20) * (pw / 600.0));
+                        var pen = new XPen(hlColor, penWidthPt)
+                        {
+                            LineCap = XLineCap.Round,
+                            LineJoin = XLineJoin.Round
+                        };
+
+                        for (int i = 1; i < fh.Points.Count; i++)
+                        {
+                            var p1 = new XPoint(fh.Points[i - 1].X * pw, fh.Points[i - 1].Y * ph);
+                            var p2 = new XPoint(fh.Points[i].X * pw, fh.Points[i].Y * ph);
+                            gfx.DrawLine(pen, p1, p2);
+                        }
+                    }
+                }
+
+                // 3. Pen Strokes
+                if (editorData.PenStrokes.Count > 0)
+                {
+                    foreach (var stroke in editorData.PenStrokes)
+                    {
+                        if (stroke.Points.Count < 2) continue;
+
+                        XColor col = XColors.Black;
+                        try
+                        {
+                            var c = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(stroke.ColorHex);
+                            col = XColor.FromArgb(c.R, c.G, c.B);
+                        }
+                        catch { }
+
+                        double penWidthPt = Math.Max(1, (stroke.DisplayPixelThickness > 0 ? stroke.DisplayPixelThickness : 3) * (pw / 600.0));
+                        var pen = new XPen(col, penWidthPt)
+                        {
+                            LineCap = XLineCap.Round,
+                            LineJoin = XLineJoin.Round
+                        };
+
+                        for (int i = 1; i < stroke.Points.Count; i++)
+                        {
+                            var p1 = new XPoint(stroke.Points[i - 1].X * pw, stroke.Points[i - 1].Y * ph);
+                            var p2 = new XPoint(stroke.Points[i].X * pw, stroke.Points[i].Y * ph);
+                            gfx.DrawLine(pen, p1, p2);
+                        }
+                    }
+                }
+
+                // 4. Form Values (Text and Checkmarks)
+                if (editorData.FormValues.Count > 0)
+                {
+                    var textBrush = new XSolidBrush(XColor.FromArgb(255, 15, 23, 42));
+                    var checkPen = new XPen(XColor.FromArgb(255, 2, 132, 199), 1.5)
+                    {
+                        LineCap = XLineCap.Round,
+                        LineJoin = XLineJoin.Round
+                    };
+
+                    foreach (var kvp in editorData.FormValues)
+                    {
+                        var val = kvp.Value;
+                        if (val.RelWidth <= 0 || val.RelHeight <= 0) continue;
+
+                        var (llx, lly, urx, ury) = EditorCoordinateService.NormalizedBaseRectToPdfRect(
+                            new Rect(val.RelX, val.RelY, val.RelWidth, val.RelHeight), pw, ph);
+
+                        double fx = llx;
+                        double fy = ph - ury;
+                        double fw = urx - llx;
+                        double fh = ury - lly;
+
+                        if (val.FieldType == FormFieldType.CheckBox || val.FieldType == FormFieldType.RadioButton)
+                        {
+                            if (val.BoolValue)
+                            {
+                                var badgeRect = new XRect(fx, fy, fw, fh);
+                                var badgeBrush = new XSolidBrush(XColor.FromArgb(255, 2, 132, 199));
+                                gfx.DrawRoundedRectangle(badgeBrush, badgeRect, new XSize(Math.Max(1, Math.Min(fw, fh) * 0.18), Math.Max(1, Math.Min(fw, fh) * 0.18)));
+
+                                double pad = Math.Min(fw, fh) * 0.20;
+                                var p1 = new XPoint(fx + pad, fy + fh * 0.52);
+                                var p2 = new XPoint(fx + fw * 0.42, fy + fh - pad);
+                                var p3 = new XPoint(fx + fw - pad, fy + pad);
+
+                                var whitePen = new XPen(XColors.White, Math.Max(1.2, Math.Min(fw, fh) * 0.18))
+                                {
+                                    LineCap = XLineCap.Round,
+                                    LineJoin = XLineJoin.Round
+                                };
+                                gfx.DrawLine(whitePen, p1, p2);
+                                gfx.DrawLine(whitePen, p2, p3);
+                            }
+                        }
+                        else if (!string.IsNullOrEmpty(val.TextValue))
+                        {
+                            bool isMulti = val.IsMultiline || val.RelHeight >= 0.025 || val.TextValue.Contains('\n') || val.TextValue.Contains('\r');
+                            double fontSize = Math.Max(7, Math.Min(14, isMulti ? Math.Min(fh * 0.35, 12) : fh * 0.65));
+                            var font = new XFont("Segoe UI", fontSize, XFontStyleEx.Regular);
+
+                            string normalized = val.TextValue.Replace("\r\n", "\n").Replace("\r", "\n");
+                            var rawLines = normalized.Split('\n');
+
+                            if (isMulti || rawLines.Length > 1)
+                            {
+                                double lineHeight = fontSize * 1.25;
+                                double currentY = fy + 2;
+
+                                foreach (var rawLine in rawLines)
+                                {
+                                    if (string.IsNullOrEmpty(rawLine))
+                                    {
+                                        currentY += lineHeight;
+                                        continue;
+                                    }
+
+                                    var words = rawLine.Split(' ');
+                                    string currentLineText = "";
+
+                                    foreach (var word in words)
+                                    {
+                                        string testLine = string.IsNullOrEmpty(currentLineText) ? word : $"{currentLineText} {word}";
+                                        var size = gfx.MeasureString(testLine, font);
+
+                                        if (size.Width > fw - 4 && !string.IsNullOrEmpty(currentLineText))
+                                        {
+                                            if (currentY + fontSize <= fy + fh + 4)
+                                            {
+                                                var lineRect = new XRect(fx + 2, currentY, fw - 4, lineHeight);
+                                                gfx.DrawString(currentLineText, font, textBrush, lineRect, new XStringFormat { Alignment = XStringAlignment.Near, LineAlignment = XLineAlignment.Near });
+                                            }
+                                            currentY += lineHeight;
+                                            currentLineText = word;
+                                        }
+                                        else
+                                        {
+                                            currentLineText = testLine;
+                                        }
+                                    }
+
+                                    if (!string.IsNullOrEmpty(currentLineText) && currentY + fontSize <= fy + fh + 4)
+                                    {
+                                        var lineRect = new XRect(fx + 2, currentY, fw - 4, lineHeight);
+                                        gfx.DrawString(currentLineText, font, textBrush, lineRect, new XStringFormat { Alignment = XStringAlignment.Near, LineAlignment = XLineAlignment.Near });
+                                    }
+
+                                    currentY += lineHeight;
+                                }
+                            }
+                            else
+                            {
+                                var rect = new XRect(fx + 2, fy, fw - 4, fh);
+                                var format = new XStringFormat
+                                {
+                                    Alignment = XStringAlignment.Near,
+                                    LineAlignment = XLineAlignment.Center
+                                };
+                                gfx.DrawString(val.TextValue, font, textBrush, rect, format);
+                            }
+                        }
+                    }
+                }
+
+                // 5. Placed Signatures
+                if (editorData.Signatures.Count > 0)
+                {
+                    foreach (var sig in editorData.Signatures)
+                    {
+                        if (sig.SignatureImage == null) continue;
+
+                        var sigStream = new MemoryStream();
+                        var encoder = new PngBitmapEncoder();
+                        encoder.Frames.Add(BitmapFrame.Create(sig.SignatureImage));
+                        encoder.Save(sigStream);
+                        sigStream.Position = 0;
+                        disposables.Add(sigStream);
+
+                        var sigXImg = XImage.FromStream(sigStream);
+                        disposables.Add(sigXImg);
+
+                        double sx = pw * sig.RelX;
+                        double sy = ph * sig.RelY;
+                        double sw = pw * sig.RelWidth;
+                        double sh = ph * sig.RelHeight;
+
+                        gfx.DrawImage(sigXImg, sx, sy, sw, sh);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error embedding editor data onto PDF page: {ex.Message}");
             }
         }
     }

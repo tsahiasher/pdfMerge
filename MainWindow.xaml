@@ -47,7 +47,7 @@
                     </Border>
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="PDF Merger &amp; Page Manager" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC"/>
-                        <TextBlock Text="v1.2" FontSize="11" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,1,0,0"/>
+                        <TextBlock Text="v1.3.0" FontSize="11" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,1,0,0"/>
                     </StackPanel>
                 </StackPanel>
 

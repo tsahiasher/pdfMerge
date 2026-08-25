@@ -8,13 +8,14 @@ using pdfMerge.Models;
 namespace pdfMerge.Services
 {
     /// <summary>
-    /// Unified rendering pipeline for thumbnails, preview, printing, and image export (Priority 7).
+    /// Unified rendering pipeline for thumbnails, preview, printing, and image export.
+    /// Composites annotations, drawings, form fields, and signatures onto the unrotated base page,
+    /// then rotates the composite page bitmap by item.Rotation.
     /// </summary>
     public static class PageRenderService
     {
         /// <summary>
-        /// Renders a full composite page bitmap including signature overlay, rotation, and optional grayscale conversion.
-        /// Signature is composited FIRST onto unrotated base page so that rotation rotates both page and signature together.
+        /// Renders a full composite page bitmap including all editor annotations, signatures, rotation, and optional grayscale conversion.
         /// </summary>
         public static async Task<BitmapSource?> RenderCompositePageAsync(PdfPageItem item, uint targetWidth, bool isMonochrome = false, CancellationToken token = default)
         {
@@ -30,13 +31,13 @@ namespace pdfMerge.Services
 
             if (bitmap != null)
             {
-                // 1. Composite signatures onto unrotated base page first
-                if (item.PageSignatures.Count > 0)
+                // 1. Composite all editor annotations, drawings, form values, and signatures onto unrotated base page
+                if (item.EditorData.HasEdits || item.PageSignatures.Count > 0)
                 {
-                    bitmap = BitmapUtilities.RenderSignatureOverlayOnThumbnail(bitmap, item.PageSignatures);
+                    bitmap = BitmapUtilities.RenderCompositeThumbnail(bitmap, item.EditorData, item.PageSignatures);
                 }
 
-                // 2. Rotate the composite page bitmap (page + signature) by item.Rotation
+                // 2. Rotate the composite page bitmap by item.Rotation
                 if (item.Rotation != 0)
                 {
                     bitmap = BitmapUtilities.RotateBitmap(bitmap, item.Rotation);
@@ -53,7 +54,6 @@ namespace pdfMerge.Services
 
         /// <summary>
         /// Synchronously renders a composite page for printing paginator.
-        /// Signature is composited FIRST onto unrotated base page so that rotation rotates both page and signature together.
         /// </summary>
         public static BitmapSource? RenderCompositePageSync(PdfPageItem item, uint targetWidth, bool isMonochrome = false)
         {
@@ -65,13 +65,13 @@ namespace pdfMerge.Services
 
             if (bitmap != null)
             {
-                // 1. Composite signatures onto unrotated base page first
-                if (item.PageSignatures.Count > 0)
+                // 1. Composite all editor annotations, drawings, form values, and signatures onto unrotated base page
+                if (item.EditorData.HasEdits || item.PageSignatures.Count > 0)
                 {
-                    bitmap = BitmapUtilities.RenderSignatureOverlayOnThumbnail(bitmap, item.PageSignatures);
+                    bitmap = BitmapUtilities.RenderCompositeThumbnail(bitmap, item.EditorData, item.PageSignatures);
                 }
 
-                // 2. Rotate the composite page bitmap (page + signature) by item.Rotation
+                // 2. Rotate the composite page bitmap by item.Rotation
                 if (item.Rotation != 0)
                 {
                     bitmap = BitmapUtilities.RotateBitmap(bitmap, item.Rotation);

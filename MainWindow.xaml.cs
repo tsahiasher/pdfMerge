@@ -491,7 +491,8 @@ namespace pdfMerge
                         IsSelected = false,
                         IsBeingDragged = false,
                         OriginalThumbnail = existingThumb,
-                        IsLoading = existingThumb == null
+                        IsLoading = existingThumb == null,
+                        EditorData = snap.InitialEditorData?.Clone() ?? new PageEditorData()
                     };
 
                     if (snap.InitialSignatures.Count > 0)
@@ -1015,20 +1016,17 @@ namespace pdfMerge
         {
             if (sender is Button btn && btn.DataContext is PdfPageItem pageItem)
             {
-                var sigWindow = new pdfMerge.Views.SignatureWindow(pageItem)
+                var editorWindow = new pdfMerge.Views.PageEditorWindow(pageItem)
                 {
                     Owner = this
                 };
 
-                bool? sigResult = sigWindow.ShowDialog();
+                bool? editorResult = editorWindow.ShowDialog();
                 await DrainPendingInputAsync();
 
-                if (sigResult == true && sigWindow.ResultSignature != null)
+                if (editorResult == true)
                 {
-                    // Append signature to page's signatures collection (unlimited signatures per page)
-                    pageItem.PageSignatures.Add(sigWindow.ResultSignature);
-
-                    TxtStatus.Text = $"Applied signature to Page {pageItem.DisplayPageNumber} ({pageItem.PageSignatures.Count} total)";
+                    TxtStatus.Text = $"Updated edits for Page {pageItem.DisplayPageNumber}";
                 }
             }
         }

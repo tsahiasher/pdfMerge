@@ -15,12 +15,13 @@
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <ApplicationIcon>pdfMerge.ico</ApplicationIcon>
-    <Version>1.2.0</Version>
-    <AssemblyVersion>1.2.0.0</AssemblyVersion>
-    <FileVersion>1.2.0.0</FileVersion>
+    <Version>1.3.0</Version>
+    <AssemblyVersion>1.3.0.0</AssemblyVersion>
+    <FileVersion>1.3.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="PdfPig" Version="0.1.16" />
     <PackageReference Include="PdfSharp" Version="6.2.4" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="9.0.2" />
   </ItemGroup>

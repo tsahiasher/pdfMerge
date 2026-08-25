@@ -4,7 +4,7 @@
 
 #define MyAppName "PDF Merge"
 #define MyAppFullTitle "PDF Merge & Page Manager"
-#define MyAppVersion "1.2.0"
+#define MyAppVersion "1.3.0"
 #define MyAppPublisher "Tsahi Asher"
 #define MyAppExeName "pdfMerge.exe"
 #define MyAppIcon "pdfMerge.ico"

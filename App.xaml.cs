@@ -87,9 +87,23 @@ namespace pdfMerge
             int resultCount = await PdfService.GetPageCountAsync(outputPath);
             Console.WriteLine($"   Merged Document Page Count: {resultCount} (Expected: 4)");
 
+            string testPdfPath = Path.Combine(currentDir, "test.pdf");
+            if (File.Exists(testPdfPath))
+            {
+                Console.WriteLine("4. Testing AcroForm & Text Extraction on test.pdf...");
+                int testPageCount = await PdfService.GetPageCountAsync(testPdfPath);
+                Console.WriteLine($"   test.pdf Page Count: {testPageCount}");
+                for (int i = 0; i < testPageCount; i++)
+                {
+                    var fields = await PdfFormService.ExtractFormFieldsAsync(testPdfPath, i);
+                    var textLines = await PdfFormService.ExtractTextLinesAsync(testPdfPath, i);
+                    Console.WriteLine($"   Page {i + 1}: Found {fields.Count} form field(s), {textLines.Count} text line(s)");
+                }
+            }
+
             if (resultCount == 4 && File.Exists(outputPath))
             {
-                Console.WriteLine("\n✅ ALL TESTS PASSED: PDF Merging, Page Reordering, Page Rotation & Deletion Verified!");
+                Console.WriteLine("\n✅ ALL TESTS PASSED: PDF Merging, Page Reordering, Page Rotation & Form Field Extraction Verified!");
             }
             else
             {

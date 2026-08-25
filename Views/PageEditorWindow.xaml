@@ -1,0 +1,286 @@
+<Window x:Class="pdfMerge.Views.PageEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:helpers="clr-namespace:pdfMerge.Helpers"
+        mc:Ignorable="d"
+        Title="PDF Page Editor"
+        Height="880" Width="1320"
+        MinHeight="600" MinWidth="900"
+        WindowStartupLocation="CenterOwner"
+        Background="#0B1120"
+        Foreground="#F8FAFC"
+        KeyDown="PageEditorWindow_KeyDown">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Resources/AppStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Editor Tool Tab Button Style -->
+            <Style x:Key="EditorTabButtonStyle" TargetType="RadioButton">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="#94A3B8"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Padding" Value="14,8"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}" Margin="2,0">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="border" Property="Background" Value="#1E293B"/>
+                                    <Setter Property="Foreground" Value="#F8FAFC"/>
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="border" Property="Background" Value="#0284C7"/>
+                                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Text Size Selector Button Style -->
+            <Style x:Key="TextSizeButtonStyle" TargetType="RadioButton">
+                <Setter Property="Background" Value="#1E293B"/>
+                <Setter Property="Foreground" Value="#94A3B8"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Padding" Value="10,4"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="#334155" BorderThickness="1" CornerRadius="4" Padding="{TemplateBinding Padding}" Margin="2,0">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="border" Property="Background" Value="#334155"/>
+                                    <Setter Property="Foreground" Value="#F8FAFC"/>
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="border" Property="Background" Value="#0EA5E9"/>
+                                    <Setter TargetName="border" Property="BorderBrush" Value="#38BDF8"/>
+                                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Color Pill Button Style -->
+            <Style x:Key="ColorPillButtonStyle" TargetType="Button">
+                <Setter Property="Width" Value="20"/>
+                <Setter Property="Height" Value="20"/>
+                <Setter Property="Margin" Value="3,0"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="10"/>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/> <!-- Top Main Header -->
+            <RowDefinition Height="Auto"/> <!-- Secondary Options Toolbar -->
+            <RowDefinition Height="*"/>    <!-- Layered Viewport Canvas Workspace -->
+            <RowDefinition Height="Auto"/> <!-- Bottom Status & Zoom Bar -->
+        </Grid.RowDefinitions>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- TOP MAIN HEADER (Page info, Tool selectors, Save & Cancel)   -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="0" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="14,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- LEFT: Page & Source Info Badge -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border x:Name="BadgePageNum" Background="#0EA5E9" CornerRadius="5" Padding="8,4" Margin="0,0,8,0">
+                        <TextBlock x:Name="TxtPageBadge" Text="Page 1" FontWeight="Bold" FontSize="12" Foreground="White"/>
+                    </Border>
+                    <TextBlock x:Name="TxtSourceFileName" Text="document.pdf" FontWeight="SemiBold" FontSize="13" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,8,0" MaxWidth="220" TextTrimming="CharacterEllipsis"/>
+                    <Border x:Name="BadgeRotation" Background="#334155" CornerRadius="4" Padding="6,2" Visibility="Collapsed" VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtRotationBadge" Text="90°" FontSize="11" FontWeight="Bold" Foreground="#38BDF8"/>
+                    </Border>
+                </StackPanel>
+
+                <!-- CENTER: Tool Tabs (Form & Text is Default) -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Border Background="#131D31" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="4">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="TabToolFormText" Style="{StaticResource EditorTabButtonStyle}" Content="📝 Form &amp; Text" IsChecked="True" Checked="ToolTab_Checked" ToolTip="Fill PDF AcroForms, Edit Fields, and Select Text"/>
+                            <RadioButton x:Name="TabToolPen" Style="{StaticResource EditorTabButtonStyle}" Content="✏️ Draw Pen" Checked="ToolTab_Checked" ToolTip="Freehand Smooth Pen Drawing"/>
+                            <RadioButton x:Name="TabToolHighlighter" Style="{StaticResource EditorTabButtonStyle}" Content="🖍️ Highlighter" Checked="ToolTab_Checked" ToolTip="Dual-Mode: Drag over text for text highlight, or drag in space for freehand highlight"/>
+                            <RadioButton x:Name="TabToolSignature" Style="{StaticResource EditorTabButtonStyle}" Content="✍️ Signature" Checked="ToolTab_Checked" ToolTip="Place and Manage Signatures in-place"/>
+                            <RadioButton x:Name="TabToolEraser" Style="{StaticResource EditorTabButtonStyle}" Content="🧹 Eraser" Checked="ToolTab_Checked" ToolTip="Circular Eraser for pen and highlights"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- RIGHT: Save & Done, Cancel -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BtnCancel" Content="✕ Cancel" Click="BtnCancel_Click" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0" Padding="14,7" ToolTip="Discard current session changes"/>
+                    <Button x:Name="BtnSaveDone" Content="✔ Save &amp; Done" Click="BtnSaveDone_Click" Style="{StaticResource SuccessButtonStyle}" Padding="16,7" ToolTip="Save changes to page and update thumbnail"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- SECONDARY DYNAMIC TOOL OPTIONS BAR                         -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="1" Background="#131D31" BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="14,6" MinHeight="42">
+            <Grid VerticalAlignment="Center">
+                <!-- 1. Form & Text Options -->
+                <StackPanel x:Name="PnlOptionsFormText" Orientation="Horizontal" Visibility="Visible">
+                    <TextBlock Text="Text Size:" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="SemiBold"/>
+                    <RadioButton x:Name="RdoSizeAuto" Style="{StaticResource TextSizeButtonStyle}" Content="Auto" IsChecked="True" Checked="TextSize_Checked"/>
+                    <RadioButton x:Name="RdoSizeSmall" Style="{StaticResource TextSizeButtonStyle}" Content="Small" Checked="TextSize_Checked"/>
+                    <RadioButton x:Name="RdoSizeMedium" Style="{StaticResource TextSizeButtonStyle}" Content="Medium" Checked="TextSize_Checked"/>
+                    <RadioButton x:Name="RdoSizeLarge" Style="{StaticResource TextSizeButtonStyle}" Content="Large" Checked="TextSize_Checked"/>
+                </StackPanel>
+
+                <!-- 2. Draw Pen Options -->
+                <StackPanel x:Name="PnlOptionsPen" Orientation="Horizontal" Visibility="Collapsed">
+                    <TextBlock Text="Width:" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,6,0" FontWeight="SemiBold"/>
+                    <Slider x:Name="SldPenWidth" Minimum="1" Maximum="12" Value="3" Width="100" VerticalAlignment="Center" ValueChanged="SldPenWidth_ValueChanged"/>
+                    <TextBlock x:Name="TxtPenWidthVal" Text="3px" FontSize="11" Foreground="#38BDF8" Width="30" VerticalAlignment="Center" Margin="4,0,12,0"/>
+
+                    <Border Width="1" Height="16" Background="#334155" Margin="4,0,12,0"/>
+                    <Button x:Name="BtnUndoPen" Content="↶ Undo" Click="BtnUndo_Click" Style="{StaticResource IconButtonLessStyle}" Padding="10,4" ToolTip="Undo last stroke"/>
+                </StackPanel>
+
+                <!-- 3. Highlighter Options -->
+                <StackPanel x:Name="PnlOptionsHighlighter" Orientation="Horizontal" Visibility="Collapsed">
+                    <RadioButton x:Name="RdoHlFreehand" Style="{StaticResource TextSizeButtonStyle}" Content="🖊 Freehand" IsChecked="True" Checked="HlMode_Checked" Margin="0,0,4,0"/>
+                    <RadioButton x:Name="RdoHlRectangle" Style="{StaticResource TextSizeButtonStyle}" Content="⬚ Rectangle" Checked="HlMode_Checked" Margin="0,0,12,0"/>
+
+                    <Border Width="1" Height="16" Background="#334155" Margin="0,0,12,0"/>
+
+                    <TextBlock x:Name="TxtHlWidthLabel" Text="Width:" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,6,0" FontWeight="SemiBold"/>
+                    <Slider x:Name="SldHlWidth" Minimum="8" Maximum="40" Value="20" Width="100" VerticalAlignment="Center" ValueChanged="SldHlWidth_ValueChanged"/>
+                    <TextBlock x:Name="TxtHlWidthVal" Text="20px" FontSize="11" Foreground="#FACC15" Width="32" VerticalAlignment="Center" Margin="4,0,12,0"/>
+
+                    <Border Width="1" Height="16" Background="#334155" Margin="4,0,12,0"/>
+                    <Button x:Name="BtnUndoHl" Content="↶ Undo" Click="BtnUndo_Click" Style="{StaticResource IconButtonLessStyle}" Padding="10,4" ToolTip="Undo last highlight"/>
+                </StackPanel>
+
+                <!-- 4. Signature Options -->
+                <StackPanel x:Name="PnlOptionsSignature" Orientation="Horizontal" Visibility="Collapsed">
+                    <Button x:Name="BtnDeleteSelectedSig" Content="🗑 Delete Selected" Click="BtnDeleteSelectedSig_Click" Style="{StaticResource DangerButtonStyle}" Padding="10,4" IsEnabled="False"/>
+                </StackPanel>
+
+                <!-- 5. Eraser Options -->
+                <StackPanel x:Name="PnlOptionsEraser" Orientation="Horizontal" Visibility="Collapsed">
+                    <TextBlock Text="Eraser Size:" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,6,0" FontWeight="SemiBold"/>
+                    <Slider x:Name="SldEraserSize" Minimum="3" Maximum="60" Value="10" Width="110" VerticalAlignment="Center" ValueChanged="SldEraserSize_ValueChanged"/>
+                    <TextBlock x:Name="TxtEraserSizeVal" Text="10px" FontSize="11" Foreground="#94A3B8" Width="32" VerticalAlignment="Center" Margin="4,0,12,0"/>
+
+                    <Border Width="1" Height="16" Background="#334155" Margin="4,0,12,0"/>
+                    <Button x:Name="BtnUndoEraser" Content="↶ Undo" Click="BtnUndo_Click" Style="{StaticResource IconButtonLessStyle}" Padding="10,4" ToolTip="Undo erase"/>
+                    <Border Width="1" Height="16" Background="#334155" Margin="8,0"/>
+                    <Button x:Name="BtnClearAllDrawings" Content="🗑 Clear All Drawings" Click="BtnClearAllDrawings_Click" Style="{StaticResource DangerButtonStyle}" Padding="10,4" ToolTip="Clear pen strokes and highlights"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- LAYERED WORKSPACE VIEWPORT (SCROLLVIEWER + LAYERS)          -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <ScrollViewer x:Name="EditorScrollViewer"
+                      Grid.Row="2"
+                      Background="#0B1120"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Auto"
+                      Focusable="True">
+            <Grid x:Name="EditorOuterGrid" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24">
+                <!-- LAYERED CANVAS WORKSPACE CONTAINER (Explicit physical width/height scaled with zoom) -->
+                <Grid x:Name="WorkspaceContainer"
+                      Background="#FFFFFF"
+                      ClipToBounds="True"
+                      MouseLeftButtonDown="Workspace_MouseLeftButtonDown"
+                      MouseMove="Workspace_MouseMove"
+                      MouseLeftButtonUp="Workspace_MouseLeftButtonUp"
+                      MouseEnter="Workspace_MouseEnter"
+                      MouseLeave="Workspace_MouseLeave">
+                    <Grid.Effect>
+                        <DropShadowEffect BlurRadius="20" Direction="270" ShadowDepth="4" Opacity="0.4" Color="#000000"/>
+                    </Grid.Effect>
+
+                    <!-- LAYER 1: BASE HIGH-RESOLUTION PDF PAGE RENDER -->
+                    <Image x:Name="ImgBasePage" Stretch="Fill" IsHitTestVisible="False"/>
+
+                    <!-- LAYER 2: COMMITTED TEXT & FREEHAND HIGHLIGHTS -->
+                    <Canvas x:Name="CnvHighlights" IsHitTestVisible="False"/>
+
+                    <!-- LAYER 3: COMMITTED PEN VECTOR DRAWINGS -->
+                    <Canvas x:Name="CnvDrawings" IsHitTestVisible="False"/>
+
+                    <!-- LAYER 4: DRAFT STROKE / BLUE TEXT SELECTION OVERLAY -->
+                    <Canvas x:Name="CnvDraftOverlay" IsHitTestVisible="False"/>
+
+                    <!-- LAYER 5: INTERACTIVE ACROFORM CONTROLS -->
+                    <Canvas x:Name="CnvAcroFormControls"/>
+
+                    <!-- LAYER 6: PLACED SIGNATURE OVERLAYS WITH RESIZE HANDLES -->
+                    <Canvas x:Name="CnvSignatures"/>
+
+                    <!-- LAYER 7: ERASER CIRCULAR FOLLOWER CURSOR -->
+                    <Canvas x:Name="CnvEraserFollower" IsHitTestVisible="False">
+                        <Ellipse x:Name="EraserFollowerCircle"
+                                 Stroke="#334155"
+                                 StrokeThickness="1.5"
+                                 Fill="#2264748B"
+                                 Visibility="Collapsed"/>
+                    </Canvas>
+                </Grid>
+            </Grid>
+        </ScrollViewer>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- BOTTOM STATUS & VIEWPORT ZOOM BAR                          -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="3" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,1,0,0" Padding="14,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Status Text -->
+                <TextBlock x:Name="TxtStatus" Grid.Column="0" Text="Ready" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center"/>
+
+                <!-- Zoom Controls -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BtnZoomOut" Content="−" Click="BtnZoomOut_Click" Style="{StaticResource IconButtonLessStyle}" Width="28" Height="28" Padding="0" ToolTip="Zoom Out (Ctrl+-)"/>
+                    <TextBlock x:Name="TxtZoomPercentage" Text="100%" FontSize="12" FontWeight="Bold" Foreground="#F8FAFC" Width="48" TextAlignment="Center" VerticalAlignment="Center" Margin="2,0"/>
+                    <Button x:Name="BtnZoomIn" Content="+" Click="BtnZoomIn_Click" Style="{StaticResource IconButtonLessStyle}" Width="28" Height="28" Padding="0" ToolTip="Zoom In (Ctrl++)"/>
+                    <Border Width="1" Height="14" Background="#334155" Margin="8,0"/>
+                    <Button x:Name="BtnFitWidth" Content="↔ Fit Width" Click="BtnFitWidth_Click" Style="{StaticResource IconButtonLessStyle}" Padding="8,3" Margin="0,0,4,0" ToolTip="Fit to Window Width"/>
+                    <Button x:Name="BtnFitPage" Content="↕ Fit Page" Click="BtnFitPage_Click" Style="{StaticResource IconButtonLessStyle}" Padding="8,3" ToolTip="Fit Entire Page"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

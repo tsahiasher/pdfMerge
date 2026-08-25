@@ -20,6 +20,7 @@ namespace pdfMerge.Models
         private bool _isLoading = true;
         private bool _isBeingDragged;
         private readonly ObservableCollection<AppliedSignature> _pageSignatures = new ObservableCollection<AppliedSignature>();
+        private PageEditorData _editorData = new PageEditorData();
         private string _documentColorHex = "#0EA5E9";
 
         public PdfPageItem()
@@ -28,6 +29,17 @@ namespace pdfMerge.Models
             {
                 InvalidateThumbnailCache();
             };
+        }
+
+        public PageEditorData EditorData
+        {
+            get => _editorData;
+            set
+            {
+                _editorData = value ?? new PageEditorData();
+                InvalidateThumbnailCache();
+                OnPropertyChanged(nameof(EditorData));
+            }
         }
 
         public ObservableCollection<AppliedSignature> PageSignatures => _pageSignatures;
@@ -123,12 +135,12 @@ namespace pdfMerge.Models
             get
             {
                 if (_originalThumbnail == null) return null;
-                if (_pageSignatures.Count == 0) return _originalThumbnail;
+                if (_pageSignatures.Count == 0 && !_editorData.HasEdits) return _originalThumbnail;
 
                 // Return cached composite if available
                 if (_cachedDisplayThumbnail != null) return _cachedDisplayThumbnail;
 
-                _cachedDisplayThumbnail = BitmapUtilities.RenderSignatureOverlayOnThumbnail(_originalThumbnail, _pageSignatures);
+                _cachedDisplayThumbnail = BitmapUtilities.RenderCompositeThumbnail(_originalThumbnail, _editorData, _pageSignatures);
                 return _cachedDisplayThumbnail;
             }
         }
@@ -202,7 +214,8 @@ namespace pdfMerge.Models
                 CardWidth = this.CardWidth,
                 CardHeight = this.CardHeight,
                 ImageMaxHeight = this.ImageMaxHeight,
-                ImageMaxWidth = this.ImageMaxWidth
+                ImageMaxWidth = this.ImageMaxWidth,
+                EditorData = this.EditorData.Clone()
             };
 
             foreach (var sig in this.PageSignatures)

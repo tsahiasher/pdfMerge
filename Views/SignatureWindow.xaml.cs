@@ -65,6 +65,22 @@ namespace pdfMerge.Views
             SwitchTab(0);
         }
 
+        public SignatureWindow(PdfPageItem page, Rect directPlacementRect) : this(page)
+        {
+            _relativePlacementRect = directPlacementRect;
+
+            // Direct Signature Creation mode (from Page Editor) - skip Step 1 and do not call it Step 2
+            PnlStep1.Visibility = Visibility.Collapsed;
+            PnlStep2.Visibility = Visibility.Visible;
+
+            BtnContinueStep1.Visibility = Visibility.Collapsed;
+            BtnFinishStep2.Visibility = Visibility.Visible;
+            BtnBackStep.Visibility = Visibility.Collapsed;
+
+            TxtWizardStepTitle.Text = "Choose or Create Signature";
+            TxtWizardStepSubtitle.Text = "Draw, type, upload an image, or select a saved signature.";
+        }
+
         #region Step 1: Drag Signature Placement Box
 
         private void Step1Canvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
