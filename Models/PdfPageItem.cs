@@ -19,16 +19,11 @@ namespace pdfMerge.Models
         private bool _isSelected;
         private bool _isLoading = true;
         private bool _isBeingDragged;
-        private readonly ObservableCollection<AppliedSignature> _pageSignatures = new ObservableCollection<AppliedSignature>();
         private PageEditorData _editorData = new PageEditorData();
         private string _documentColorHex = "#0EA5E9";
 
         public PdfPageItem()
         {
-            _pageSignatures.CollectionChanged += (s, e) =>
-            {
-                InvalidateThumbnailCache();
-            };
         }
 
         public PageEditorData EditorData
@@ -41,8 +36,6 @@ namespace pdfMerge.Models
                 OnPropertyChanged(nameof(EditorData));
             }
         }
-
-        public ObservableCollection<AppliedSignature> PageSignatures => _pageSignatures;
 
         public void InvalidateThumbnailCache()
         {
@@ -135,12 +128,12 @@ namespace pdfMerge.Models
             get
             {
                 if (_originalThumbnail == null) return null;
-                if (_pageSignatures.Count == 0 && !_editorData.HasEdits) return _originalThumbnail;
+                if (!_editorData.HasEdits) return _originalThumbnail;
 
                 // Return cached composite if available
                 if (_cachedDisplayThumbnail != null) return _cachedDisplayThumbnail;
 
-                _cachedDisplayThumbnail = BitmapUtilities.RenderCompositeThumbnail(_originalThumbnail, _editorData, _pageSignatures);
+                _cachedDisplayThumbnail = BitmapUtilities.RenderCompositeThumbnail(_originalThumbnail, _editorData);
                 return _cachedDisplayThumbnail;
             }
         }
@@ -217,11 +210,6 @@ namespace pdfMerge.Models
                 ImageMaxWidth = this.ImageMaxWidth,
                 EditorData = this.EditorData.Clone()
             };
-
-            foreach (var sig in this.PageSignatures)
-            {
-                item.PageSignatures.Add(sig.Clone());
-            }
 
             return item;
         }

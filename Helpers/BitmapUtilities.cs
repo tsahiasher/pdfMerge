@@ -27,17 +27,7 @@ namespace pdfMerge.Helpers
             return grayBitmap;
         }
 
-        public static BitmapSource RenderSignatureOverlayOnThumbnail(BitmapSource baseThumb, AppliedSignature sig)
-        {
-            return RenderSignatureOverlayOnThumbnail(baseThumb, new[] { sig });
-        }
-
-        public static BitmapSource RenderSignatureOverlayOnThumbnail(BitmapSource baseThumb, IEnumerable<AppliedSignature> signatures)
-        {
-            return RenderCompositeThumbnail(baseThumb, new PageEditorData(), signatures);
-        }
-
-        public static BitmapSource RenderCompositeThumbnail(BitmapSource baseThumb, PageEditorData editorData, IEnumerable<AppliedSignature>? extraSignatures = null)
+        public static BitmapSource RenderCompositeThumbnail(BitmapSource baseThumb, PageEditorData editorData)
         {
             int width = baseThumb.PixelWidth;
             int height = baseThumb.PixelHeight;
@@ -228,21 +218,6 @@ namespace pdfMerge.Helpers
                 if (editorData.Signatures.Count > 0)
                 {
                     foreach (var sig in editorData.Signatures)
-                    {
-                        if (sig.SignatureImage == null) continue;
-                        double sx = width * Math.Clamp(sig.RelX, 0, 0.99);
-                        double sy = height * Math.Clamp(sig.RelY, 0, 0.99);
-                        double sw = width * Math.Clamp(sig.RelWidth, 0.01, 1.0 - sig.RelX);
-                        double sh = height * Math.Clamp(sig.RelHeight, 0.01, 1.0 - sig.RelY);
-
-                        dc.DrawImage(sig.SignatureImage, new Rect(sx, sy, sw, sh));
-                    }
-                }
-
-                // 7. Draw Extra / Legacy Signatures
-                if (extraSignatures != null)
-                {
-                    foreach (var sig in extraSignatures)
                     {
                         if (sig.SignatureImage == null) continue;
                         double sx = width * Math.Clamp(sig.RelX, 0, 0.99);

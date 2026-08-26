@@ -16,63 +16,41 @@
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <!-- Title Bar / Wizard Header -->
+            <!-- Title Bar / Header -->
             <RowDefinition Height="*"/>
-            <!-- Wizard Body -->
+            <!-- Body: Signature Creator -->
             <RowDefinition Height="Auto"/>
             <!-- Action Bar -->
         </Grid.RowDefinitions>
 
-        <!-- WIZARD HEADER -->
+        <!-- HEADER -->
         <Border Grid.Row="0" Background="#1E293B" CornerRadius="8" Padding="16,10" Margin="0,0,0,10">
             <Grid>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Border Width="30" Height="30" Background="Transparent" Margin="0,0,10,0">
-                        <TextBlock Text="✏️" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <TextBlock Text="✍️" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock x:Name="TxtWizardStepTitle" Text="Step 1 of 2: Draw Signature Placement Box" FontSize="15" FontWeight="Bold" Foreground="#F8FAFC"/>
-                        <TextBlock x:Name="TxtWizardStepSubtitle" Text="Click and drag your mouse on the page preview to specify where to place the signature." FontSize="12" Foreground="#94A3B8"/>
+                        <TextBlock Text="Choose or Create Signature" FontSize="15" FontWeight="Bold" Foreground="#F8FAFC"/>
+                        <TextBlock Text="Draw, type, upload an image, or select a saved signature." FontSize="12" Foreground="#94A3B8"/>
                     </StackPanel>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- WIZARD BODY AREA -->
+        <!-- BODY AREA: CREATE & SELECT SIGNATURE -->
         <Grid Grid.Row="1">
-            <!-- STEP 1: DRAW SIGNATURE PLACEMENT BOX -->
-            <Grid x:Name="PnlStep1" Visibility="Visible">
-                <Border Background="#182232" BorderBrush="#334155" BorderThickness="1" CornerRadius="8" Padding="10">
-                    <Grid x:Name="GridStep1Canvas"
-                          MouseLeftButtonDown="Step1Canvas_MouseLeftButtonDown"
-                          MouseMove="Step1Canvas_MouseMove"
-                          MouseLeftButtonUp="Step1Canvas_MouseLeftButtonUp"
-                          Background="Transparent" Cursor="Cross">
-                        
-                        <!-- Page Preview Image -->
-                        <Image x:Name="ImgPagePreview" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <!-- Tab Navigation Header Bar -->
+                <RowDefinition Height="Auto"/>
+                <!-- Active Tab Content Area (Fixed 300px Height) -->
+                <RowDefinition Height="Auto"/>
+                <!-- Saved Signatures Gallery -->
+            </Grid.RowDefinitions>
 
-                        <!-- Signature Placement Bounding Box Canvas -->
-                        <Canvas x:Name="CnvPlacementOverlay" IsHitTestVisible="False">
-                            <Rectangle x:Name="RectPlacement" Stroke="#0EA5E9" StrokeThickness="2.5" Fill="#330EA5E9" Visibility="Collapsed" RadiusX="3" RadiusY="3"/>
-                        </Canvas>
-                    </Grid>
-                </Border>
-            </Grid>
-
-            <!-- STEP 2: CREATE & SELECT SIGNATURE (UNIFORM FIXED HEIGHT 300px CONTAINER) -->
-            <Grid x:Name="PnlStep2" Visibility="Collapsed">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <!-- Tab Navigation Header Bar -->
-                    <RowDefinition Height="Auto"/>
-                    <!-- Active Tab Content Area (Fixed 300px Height) -->
-                    <RowDefinition Height="Auto"/>
-                    <!-- Saved Signatures Gallery -->
-                </Grid.RowDefinitions>
-
-                <!-- TAB NAVIGATION HEADER BAR -->
-                <Border Grid.Row="0" Background="#182232" BorderBrush="#334155" BorderThickness="1,1,1,0" CornerRadius="8,8,0,0" Padding="8,4,8,0">
+            <!-- TAB NAVIGATION HEADER BAR -->
+            <Border Grid.Row="0" Background="#182232" BorderBrush="#334155" BorderThickness="1,1,1,0" CornerRadius="8,8,0,0" Padding="8,4,8,0">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -303,39 +281,21 @@
                     </StackPanel>
                 </Border>
             </Grid>
-        </Grid>
 
-        <!-- WIZARD BOTTOM ACTION BAR -->
+        <!-- BOTTOM ACTION BAR -->
         <Border Grid.Row="2" Margin="0,10,0,0">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Left Navigation Button (Back) -->
-                <Button x:Name="BtnBackStep" Grid.Column="0" Click="BtnBackStep_Click" Padding="16,8" Background="#334155" Foreground="White" BorderThickness="0" Visibility="Collapsed">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="◀ " FontSize="12"/>
-                        <TextBlock Text="Back"/>
-                    </StackPanel>
-                </Button>
-
-                <!-- Right Navigation Buttons (Continue / Finish / Cancel) -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal">
-                    <Button Click="BtnCancel_Click" Padding="16,8" Background="#334155" Foreground="#94A3B8" BorderThickness="0" Margin="0,0,10,0">
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Click="BtnCancel_Click" Padding="16,8" Background="#334155" Foreground="#94A3B8" BorderThickness="0" Margin="0,0,10,0" Cursor="Hand">
                         <TextBlock Text="Cancel"/>
                     </Button>
 
-                    <Button x:Name="BtnContinueStep1" Click="BtnContinueStep1_Click" Style="{StaticResource WizardPrimaryButtonStyle}" IsEnabled="False">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Continue "/>
-                            <TextBlock Text="▶"/>
-                        </StackPanel>
-                    </Button>
-
-                    <Button x:Name="BtnFinishStep2" Click="BtnFinishStep2_Click" Style="{StaticResource WizardSuccessButtonStyle}" Visibility="Collapsed">
+                    <Button x:Name="BtnFinishStep2" Click="BtnFinishStep2_Click" Style="{StaticResource WizardSuccessButtonStyle}" Visibility="Visible" Cursor="Hand">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="✔ " FontSize="14"/>
                             <TextBlock Text="Apply Signature"/>

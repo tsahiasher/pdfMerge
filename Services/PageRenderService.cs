@@ -32,9 +32,9 @@ namespace pdfMerge.Services
             if (bitmap != null)
             {
                 // 1. Composite all editor annotations, drawings, form values, and signatures onto unrotated base page
-                if (item.EditorData.HasEdits || item.PageSignatures.Count > 0)
+                if (item.EditorData.HasEdits)
                 {
-                    bitmap = BitmapUtilities.RenderCompositeThumbnail(bitmap, item.EditorData, item.PageSignatures);
+                    bitmap = BitmapUtilities.RenderCompositeThumbnail(bitmap, item.EditorData);
                 }
 
                 // 2. Rotate the composite page bitmap by item.Rotation
@@ -66,9 +66,9 @@ namespace pdfMerge.Services
             if (bitmap != null)
             {
                 // 1. Composite all editor annotations, drawings, form values, and signatures onto unrotated base page
-                if (item.EditorData.HasEdits || item.PageSignatures.Count > 0)
+                if (item.EditorData.HasEdits)
                 {
-                    bitmap = BitmapUtilities.RenderCompositeThumbnail(bitmap, item.EditorData, item.PageSignatures);
+                    bitmap = BitmapUtilities.RenderCompositeThumbnail(bitmap, item.EditorData);
                 }
 
                 // 2. Rotate the composite page bitmap by item.Rotation

@@ -173,18 +173,6 @@ namespace pdfMerge.Models
                 RelHeight = this.RelHeight
             };
         }
-
-        public AppliedSignature ToAppliedSignature()
-        {
-            return new AppliedSignature
-            {
-                SignatureImage = this.SignatureImage,
-                RelX = this.RelX,
-                RelY = this.RelY,
-                RelWidth = this.RelWidth,
-                RelHeight = this.RelHeight
-            };
-        }
     }
 
     /// <summary>

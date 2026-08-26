@@ -8,7 +8,6 @@ namespace pdfMerge.Models
         public int OriginalPageIndex { get; set; }
         public int OriginalDisplayPageNumber { get; set; }
         public int InitialRotation { get; set; }
-        public List<AppliedSignature> InitialSignatures { get; set; } = new List<AppliedSignature>();
         public PageEditorData InitialEditorData { get; set; } = new PageEditorData();
     }
 }

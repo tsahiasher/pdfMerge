@@ -20,8 +20,6 @@ namespace pdfMerge.Views
     public partial class SignatureWindow : Window
     {
         private readonly PdfPageItem _targetPage;
-        private Point _rectStartPoint;
-        private bool _isDrawingRect;
         private Rect _relativePlacementRect = new Rect(0.1, 0.1, 0.3, 0.15);
 
         private int _activeTabIndex = 0; // 0: Draw, 1: Type, 2: Upload, 3: Symbol
@@ -34,20 +32,13 @@ namespace pdfMerge.Views
         private bool _isUpdatingLibrarySelection = false;
 
         public ObservableCollection<SavedSignatureItem> SavedSignatures { get; } = new ObservableCollection<SavedSignatureItem>();
-        public AppliedSignature? ResultSignature { get; private set; }
+        public PlacedSignatureItem? ResultSignature { get; private set; }
 
-        public SignatureWindow(PdfPageItem page)
+        public SignatureWindow(PdfPageItem page, Rect? directPlacementRect = null)
         {
             InitializeComponent();
             _targetPage = page;
-
-            BitmapSource? previewBmp = _targetPage.Thumbnail;
-            if (previewBmp != null && _targetPage.Rotation != 0)
-            {
-                previewBmp = pdfMerge.Helpers.BitmapUtilities.RotateBitmap(previewBmp, _targetPage.Rotation);
-            }
-            ImgPagePreview.Source = previewBmp;
-            ImgPagePreview.RenderTransform = null;
+            _relativePlacementRect = directPlacementRect ?? new Rect(0.35, 0.40, 0.30, 0.15);
 
             _signaturesFolderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "pdfMerge", "Signatures");
             Directory.CreateDirectory(_signaturesFolderPath);
@@ -65,198 +56,7 @@ namespace pdfMerge.Views
             SwitchTab(0);
         }
 
-        public SignatureWindow(PdfPageItem page, Rect directPlacementRect) : this(page)
-        {
-            _relativePlacementRect = directPlacementRect;
-
-            // Direct Signature Creation mode (from Page Editor) - skip Step 1 and do not call it Step 2
-            PnlStep1.Visibility = Visibility.Collapsed;
-            PnlStep2.Visibility = Visibility.Visible;
-
-            BtnContinueStep1.Visibility = Visibility.Collapsed;
-            BtnFinishStep2.Visibility = Visibility.Visible;
-            BtnBackStep.Visibility = Visibility.Collapsed;
-
-            TxtWizardStepTitle.Text = "Choose or Create Signature";
-            TxtWizardStepSubtitle.Text = "Draw, type, upload an image, or select a saved signature.";
-        }
-
-        #region Step 1: Drag Signature Placement Box
-
-        private void Step1Canvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            _rectStartPoint = e.GetPosition(GridStep1Canvas);
-            _isDrawingRect = true;
-
-            Canvas.SetLeft(RectPlacement, _rectStartPoint.X);
-            Canvas.SetTop(RectPlacement, _rectStartPoint.Y);
-            RectPlacement.Width = 0;
-            RectPlacement.Height = 0;
-            RectPlacement.Visibility = Visibility.Visible;
-
-            BtnContinueStep1.IsEnabled = false;
-        }
-
-        private void Step1Canvas_MouseMove(object sender, MouseEventArgs e)
-        {
-            if (_isDrawingRect && e.LeftButton == MouseButtonState.Pressed)
-            {
-                Point currentPoint = e.GetPosition(GridStep1Canvas);
-
-                double x = Math.Min(_rectStartPoint.X, currentPoint.X);
-                double y = Math.Min(_rectStartPoint.Y, currentPoint.Y);
-                double width = Math.Abs(_rectStartPoint.X - currentPoint.X);
-                double height = Math.Abs(_rectStartPoint.Y - currentPoint.Y);
-
-                Canvas.SetLeft(RectPlacement, x);
-                Canvas.SetTop(RectPlacement, y);
-                RectPlacement.Width = width;
-                RectPlacement.Height = height;
-
-                if (width > 15 && height > 15)
-                {
-                    BtnContinueStep1.IsEnabled = true;
-                }
-            }
-        }
-
-        private void Step1Canvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            if (_isDrawingRect)
-            {
-                _isDrawingRect = false;
-
-                if (RectPlacement.Width > 15 && RectPlacement.Height > 15)
-                {
-                    CalculateNormalizedPlacement();
-                    BtnContinueStep1.IsEnabled = true;
-                }
-                else
-                {
-                    RectPlacement.Visibility = Visibility.Collapsed;
-                    BtnContinueStep1.IsEnabled = false;
-                }
-            }
-        }
-
-        private void CalculateNormalizedPlacement()
-        {
-            try
-            {
-                double rectX = Canvas.GetLeft(RectPlacement);
-                double rectY = Canvas.GetTop(RectPlacement);
-
-                if (double.IsNaN(rectX)) rectX = 0;
-                if (double.IsNaN(rectY)) rectY = 0;
-
-                double rectW = RectPlacement.Width;
-                double rectH = RectPlacement.Height;
-
-                if (double.IsNaN(rectW) || rectW <= 0) rectW = 100;
-                if (double.IsNaN(rectH) || rectH <= 0) rectH = 50;
-
-                double gridW = GridStep1Canvas.ActualWidth;
-                double gridH = GridStep1Canvas.ActualHeight;
-                if (gridW <= 0) gridW = 800;
-                if (gridH <= 0) gridH = 600;
-
-                double srcW = 1.0, srcH = 1.0;
-                if (ImgPagePreview.Source is BitmapSource bmpSrc && bmpSrc.PixelWidth > 0 && bmpSrc.PixelHeight > 0)
-                {
-                    srcW = bmpSrc.PixelWidth;
-                    srcH = bmpSrc.PixelHeight;
-                }
-
-                // Calculate actual uniform aspect-fit image layout inside GridStep1Canvas
-                double scale = Math.Min(gridW / srcW, gridH / srcH);
-                double renderedW = srcW * scale;
-                double renderedH = srcH * scale;
-                double offsetX = (gridW - renderedW) / 2.0;
-                double offsetY = (gridH - renderedH) / 2.0;
-
-                double vx = Math.Clamp((rectX - offsetX) / renderedW, 0, 0.99);
-                double vy = Math.Clamp((rectY - offsetY) / renderedH, 0, 0.99);
-                double vw = Math.Clamp(rectW / renderedW, 0.01, 1.0 - vx);
-                double vh = Math.Clamp(rectH / renderedH, 0.01, 1.0 - vy);
-
-                // Transform visual coordinates on rotated preview back to unrotated 0° base page coordinates
-                int rot = ((_targetPage.Rotation % 360) + 360) % 360;
-                double ux = vx, uy = vy, uw = vw, uh = vh;
-
-                switch (rot)
-                {
-                    case 90:
-                        ux = vy;
-                        uy = 1.0 - vx - vw;
-                        uw = vh;
-                        uh = vw;
-                        break;
-                    case 180:
-                        ux = 1.0 - vx - vw;
-                        uy = 1.0 - vy - vh;
-                        uw = vw;
-                        uh = vh;
-                        break;
-                    case 270:
-                        ux = 1.0 - vy - vh;
-                        uy = vx;
-                        uw = vh;
-                        uh = vw;
-                        break;
-                }
-
-                double safeX = Math.Clamp(ux, 0, 0.99);
-                double safeY = Math.Clamp(uy, 0, 0.99);
-                double safeW = Math.Clamp(uw, 0.01, 1.0 - safeX);
-                double safeH = Math.Clamp(uh, 0.01, 1.0 - safeY);
-
-                _relativePlacementRect = new Rect(safeX, safeY, safeW, safeH);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error calculating placement: {ex.Message}");
-                _relativePlacementRect = new Rect(0.1, 0.1, 0.3, 0.15);
-            }
-        }
-
-        private void BtnContinueStep1_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                CalculateNormalizedPlacement();
-
-                PnlStep1.Visibility = Visibility.Collapsed;
-                PnlStep2.Visibility = Visibility.Visible;
-
-                BtnContinueStep1.Visibility = Visibility.Collapsed;
-                BtnFinishStep2.Visibility = Visibility.Visible;
-                BtnBackStep.Visibility = Visibility.Visible;
-
-                TxtWizardStepTitle.Text = "Step 2 of 2: Create or Choose Signature";
-                TxtWizardStepSubtitle.Text = "Draw, type, upload an image, or choose a symbol / saved signature.";
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(this, $"Error proceeding to Step 2: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        private void BtnBackStep_Click(object sender, RoutedEventArgs e)
-        {
-            PnlStep2.Visibility = Visibility.Collapsed;
-            PnlStep1.Visibility = Visibility.Visible;
-
-            BtnFinishStep2.Visibility = Visibility.Collapsed;
-            BtnContinueStep1.Visibility = Visibility.Visible;
-            BtnBackStep.Visibility = Visibility.Collapsed;
-
-            TxtWizardStepTitle.Text = "Step 1 of 2: Draw Signature Placement Box";
-            TxtWizardStepSubtitle.Text = "Click and drag your mouse on the page preview to specify where to place the signature.";
-        }
-
-        #endregion
-
-        #region Step 2: Tab Navigation (Draw, Type, Upload, Symbol)
+        #region Tab Navigation (Draw, Type, Upload, Symbol)
 
         private void UnselectLibrary()
         {
@@ -733,7 +533,7 @@ namespace pdfMerge.Views
                 finalSigBitmap = pdfMerge.Helpers.BitmapUtilities.RotateBitmap(finalSigBitmap, (360 - rot) % 360);
             }
 
-            ResultSignature = new AppliedSignature
+            ResultSignature = new PlacedSignatureItem
             {
                 SignatureImage = finalSigBitmap,
                 RelX = _relativePlacementRect.X,

@@ -284,11 +284,6 @@ namespace pdfMerge.Services
 
                             EmbedEditorDataOntoPdfPage(page, item.EditorData, openDisposables);
 
-                            foreach (var sig in item.PageSignatures)
-                            {
-                                DrawSignatureOntoPdfPage(page, sig, openDisposables);
-                            }
-
                             if (item.Rotation != 0)
                             {
                                 page.Rotate = (page.Rotate + item.Rotation) % 360;
@@ -313,11 +308,6 @@ namespace pdfMerge.Services
                                 var page = outputDocument.AddPage(sourceDoc.Pages[item.OriginalPageIndex]);
 
                                 EmbedEditorDataOntoPdfPage(page, item.EditorData, openDisposables);
-
-                                foreach (var sig in item.PageSignatures)
-                                {
-                                    DrawSignatureOntoPdfPage(page, sig, openDisposables);
-                                }
 
                                 if (item.Rotation != 0)
                                 {
@@ -991,34 +981,6 @@ namespace pdfMerge.Services
             }
 
             return item;
-        }
-
-        private static void DrawSignatureOntoPdfPage(PdfSharpPage page, AppliedSignature sig, List<IDisposable> disposables)
-        {
-            try
-            {
-                var sigStream = new MemoryStream();
-                var encoder = new PngBitmapEncoder();
-                encoder.Frames.Add(BitmapFrame.Create(sig.SignatureImage));
-                encoder.Save(sigStream);
-                sigStream.Position = 0;
-                disposables.Add(sigStream);
-
-                var sigXImg = XImage.FromStream(sigStream);
-                disposables.Add(sigXImg);
-
-                double sigX = page.Width.Point * sig.RelX;
-                double sigY = page.Height.Point * sig.RelY;
-                double sigW = page.Width.Point * sig.RelWidth;
-                double sigH = page.Height.Point * sig.RelHeight;
-
-                using var sigGfx = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append);
-                sigGfx.DrawImage(sigXImg, sigX, sigY, sigW, sigH);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error drawing signature onto PDF page: {ex.Message}");
-            }
         }
 
         private static XImage CreateXImageFromFile(string filePath, List<IDisposable> disposables)

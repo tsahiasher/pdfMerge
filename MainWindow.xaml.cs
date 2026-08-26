@@ -250,7 +250,7 @@ namespace pdfMerge
                             OriginalPageIndex = pageIdx,
                             OriginalDisplayPageNumber = pageItem.DisplayPageNumber,
                             InitialRotation = 0,
-                            InitialSignatures = new List<AppliedSignature>()
+                            InitialEditorData = new PageEditorData()
                         });
                         newlyAddedPages.Add(pageItem);
                     }
@@ -494,14 +494,6 @@ namespace pdfMerge
                         IsLoading = existingThumb == null,
                         EditorData = snap.InitialEditorData?.Clone() ?? new PageEditorData()
                     };
-
-                    if (snap.InitialSignatures.Count > 0)
-                    {
-                        foreach (var sig in snap.InitialSignatures)
-                        {
-                            restored.PageSignatures.Add(sig.Clone());
-                        }
-                    }
 
                     ApplyZoomDimensionsToItem(restored, (int)SldZoom.Value);
                     Pages.Add(restored);
@@ -780,9 +772,15 @@ namespace pdfMerge
                                 Mouse.OverrideCursor = null;
                             }
 
+                            if (draggedItems.Count == 1)
+                            {
+                                draggedItems[0].IsSelected = false;
+                            }
+
                             ResetDraggedItemsState();
                             _isDraggingPages = false;
                             GhostCard.Visibility = Visibility.Collapsed;
+                            UpdateUIState();
                         }
                     }
                 }
@@ -877,6 +875,11 @@ namespace pdfMerge
             {
                 var draggedItems = e.Data.GetData("PdfPageItems") as List<PdfPageItem>;
                 if (draggedItems == null || draggedItems.Count == 0) return;
+
+                if (draggedItems.Count == 1)
+                {
+                    draggedItems[0].IsSelected = false;
+                }
 
                 PageReorderService.ReindexSequenceNumbers(Pages);
                 UpdateUIState();
@@ -1029,14 +1032,6 @@ namespace pdfMerge
                     TxtStatus.Text = $"Updated edits for Page {pageItem.DisplayPageNumber}";
                 }
             }
-        }
-
-        // RenderSignatureOverlayOnThumbnail moved to Helpers/BitmapUtilities.cs (Rec #1)
-
-        private List<PdfPageItem> GetSelectedOrAllPages()
-        {
-            var selected = Pages.Where(p => p.IsSelected).ToList();
-            return selected.Count > 0 ? selected : Pages.ToList();
         }
 
         #endregion

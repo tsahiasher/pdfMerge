@@ -72,22 +72,6 @@ namespace pdfMerge.Views
             _targetPage = page;
             _workingData = _targetPage.EditorData?.Clone() ?? new PageEditorData();
 
-            // Import any legacy page signatures into working data if not already present
-            foreach (var sig in _targetPage.PageSignatures)
-            {
-                if (!_workingData.Signatures.Any(s => s.RelX == sig.RelX && s.RelY == sig.RelY))
-                {
-                    _workingData.Signatures.Add(new PlacedSignatureItem
-                    {
-                        SignatureImage = sig.SignatureImage,
-                        RelX = sig.RelX,
-                        RelY = sig.RelY,
-                        RelWidth = sig.RelWidth,
-                        RelHeight = sig.RelHeight
-                    });
-                }
-            }
-
             InitializeComponent();
 
             // Always default to Form & Text on every window open (Requirement 1)
@@ -894,32 +878,6 @@ namespace pdfMerge.Views
             }
         }
 
-        private void BtnAddSignature_Click(object sender, RoutedEventArgs e)
-        {
-            // Open Signature Creation Window (Draw, Type, Upload, Symbol, Saved Library)
-            var sigWin = new SignatureWindow(_targetPage) { Owner = this };
-            bool? res = sigWin.ShowDialog();
-
-            if (res == true && sigWin.ResultSignature != null)
-            {
-                PushUndoSnapshot();
-
-                // Create and place signature in center of page by default
-                var newSig = new PlacedSignatureItem
-                {
-                    SignatureImage = sigWin.ResultSignature.SignatureImage,
-                    RelX = 0.35,
-                    RelY = 0.40,
-                    RelWidth = Math.Clamp(sigWin.ResultSignature.RelWidth, 0.15, 0.45),
-                    RelHeight = Math.Clamp(sigWin.ResultSignature.RelHeight, 0.08, 0.25)
-                };
-
-                _workingData.Signatures.Add(newSig);
-                SelectSignature(newSig);
-                TxtStatus.Text = "Placed signature — drag or resize directly on page";
-            }
-        }
-
         #endregion
 
         #region Workspace Pointer Events (Drawing, Highlighting, Erasing, Signature Manipulation)
@@ -1677,14 +1635,7 @@ namespace pdfMerge.Views
             // 1. Commit working data clone to target page
             _targetPage.EditorData = _workingData.Clone();
 
-            // 2. Synchronize signatures into target page's PageSignatures collection
-            _targetPage.PageSignatures.Clear();
-            foreach (var sig in _workingData.Signatures)
-            {
-                _targetPage.PageSignatures.Add(sig.ToAppliedSignature());
-            }
-
-            // 3. Immediately invalidate thumbnail cache to update page card in gallery (Requirement 13)
+            // 2. Immediately invalidate thumbnail cache to update page card in gallery (Requirement 13)
             _targetPage.InvalidateThumbnailCache();
 
             DialogResult = true;
