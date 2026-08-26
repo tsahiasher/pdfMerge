@@ -18,6 +18,7 @@ using Microsoft.Win32;
 using pdfMerge.Helpers;
 using pdfMerge.Models;
 using pdfMerge.Services;
+using pdfMerge.Views;
 
 namespace pdfMerge
 {
@@ -220,6 +221,23 @@ namespace pdfMerge
                         continue;
                     }
 
+                    // Check if file is password protected and not yet unlocked
+                    if (PdfSecurityService.IsFilePasswordProtected(filePath))
+                    {
+                        string? cachedPwd = PdfSecurityService.GetPassword(filePath);
+                        if (string.IsNullOrEmpty(cachedPwd))
+                        {
+                            var prompt = new PasswordPromptWindow(filePath) { Owner = this };
+                            bool? unlocked = prompt.ShowDialog();
+
+                            if (unlocked != true || string.IsNullOrEmpty(prompt.EnteredPassword))
+                            {
+                                TxtStatus.Text = $"Skipped password-protected file '{Path.GetFileName(filePath)}'";
+                                continue;
+                            }
+                        }
+                    }
+
                     int pageCount = await PdfService.GetPageCountAsync(filePath, token);
 
                     var fileItem = new PdfFileItem
@@ -375,6 +393,7 @@ namespace pdfMerge
                 _originalPagesSnapshot.RemoveAll(p => p.SourceFilePath.Equals(fileItem.FilePath, StringComparison.OrdinalIgnoreCase));
 
                 Files.Remove(fileItem);
+                PdfSecurityService.ClearPassword(fileItem.FilePath);
                 PageReorderService.ReindexFilesOrder(Files);
                 PageReorderService.ReindexSequenceNumbers(Pages);
                 UpdateDocumentColors();
@@ -448,6 +467,7 @@ namespace pdfMerge
                 Pages.Clear();
                 _originalPagesSnapshot.Clear();
                 _hasSourceBookmarks = false;
+                PdfSecurityService.ClearAll();
                 UpdateUIState();
 
                 TxtStatus.Text = "Cleared all files";

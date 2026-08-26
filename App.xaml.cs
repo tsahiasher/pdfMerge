@@ -101,14 +101,56 @@ namespace pdfMerge
                 }
             }
 
-            if (resultCount == 4 && File.Exists(outputPath))
+            Console.WriteLine("5. Testing Password-Protected PDF Detection, Unlock & Unencrypted Save...");
+            string encDocPath = Path.Combine(currentDir, "test_encrypted.pdf");
+            string unlockedOutputPath = Path.Combine(currentDir, "test_unlocked_output.pdf");
+
+            CreateProtectedSamplePdf(encDocPath, 2, "secret123");
+            bool isProtected = PdfSecurityService.IsFilePasswordProtected(encDocPath);
+            Console.WriteLine($"   Encrypted PDF Detected as Protected: {isProtected} (Expected: True)");
+
+            var wrongPassResult = await PdfSecurityService.VerifyPasswordAsync(encDocPath, "wrongpass");
+            Console.WriteLine($"   Wrong Password Rejected: {!wrongPassResult.Success} (Expected: True)");
+
+            var correctPassResult = await PdfSecurityService.VerifyPasswordAsync(encDocPath, "secret123");
+            Console.WriteLine($"   Correct Password Accepted: {correctPassResult.Success} (Expected: True)");
+
+            PdfSecurityService.SetPassword(encDocPath, "secret123");
+            int encPageCount = await PdfService.GetPageCountAsync(encDocPath);
+            Console.WriteLine($"   Encrypted Doc Page Count via Cached Password: {encPageCount} (Expected: 2)");
+
+            var encPages = new List<PdfPageItem>
             {
-                Console.WriteLine("\n✅ ALL TESTS PASSED: PDF Merging, Page Reordering, Page Rotation & Form Field Extraction Verified!");
+                new PdfPageItem { SourceFilePath = encDocPath, OriginalPageIndex = 0, DisplayPageNumber = 1 },
+                new PdfPageItem { SourceFilePath = encDocPath, OriginalPageIndex = 1, DisplayPageNumber = 2 }
+            };
+
+            await PdfService.MergeAndSavePdfAsync(encPages, unlockedOutputPath);
+            bool isOutputProtected = PdfSecurityService.IsFilePasswordProtected(unlockedOutputPath);
+            Console.WriteLine($"   Saved Output PDF is Unprotected: {!isOutputProtected} (Expected: True)");
+
+            int unlockedCount = await PdfService.GetPageCountAsync(unlockedOutputPath);
+            Console.WriteLine($"   Unlocked Output Document Page Count: {unlockedCount} (Expected: 2)");
+
+            if (resultCount == 4 && File.Exists(outputPath) && isProtected && correctPassResult.Success && !isOutputProtected && unlockedCount == 2)
+            {
+                Console.WriteLine("\n✅ ALL TESTS PASSED: PDF Merging, Rotation, Form Extraction, and Password Unlock & Decryption Verified!");
             }
             else
             {
                 Console.WriteLine("\n❌ TEST FAILED!");
             }
+        }
+
+        private static void CreateProtectedSamplePdf(string path, int pageCount, string password)
+        {
+            using var doc = new PdfDocument();
+            doc.SecuritySettings.UserPassword = password;
+            for (int i = 0; i < pageCount; i++)
+            {
+                doc.AddPage();
+            }
+            doc.Save(path);
         }
 
         private static void CreateSamplePdf(string path, int pageCount)

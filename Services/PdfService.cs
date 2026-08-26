@@ -85,10 +85,14 @@ namespace pdfMerge.Services
 
             token.ThrowIfCancellationRequested();
 
+            string? pwd = PdfSecurityService.GetPassword(fullPath);
+
             try
             {
                 StorageFile file = await StorageFile.GetFileFromPathAsync(fullPath);
-                var pdfDoc = await WinPdfDocument.LoadFromFileAsync(file);
+                var pdfDoc = !string.IsNullOrEmpty(pwd)
+                    ? await WinPdfDocument.LoadFromFileAsync(file, pwd)
+                    : await WinPdfDocument.LoadFromFileAsync(file);
                 token.ThrowIfCancellationRequested();
                 return (int)pdfDoc.PageCount;
             }
@@ -97,7 +101,9 @@ namespace pdfMerge.Services
             {
                 System.Diagnostics.Debug.WriteLine($"WinRT PDF load failed for {fullPath}, falling back to PdfSharp: {ex.Message}");
                 using var stream = File.OpenRead(fullPath);
-                using var doc = PdfSharpReader.Open(stream, PdfSharpOpenMode.Import);
+                using var doc = !string.IsNullOrEmpty(pwd)
+                    ? PdfSharpReader.Open(stream, pwd, PdfSharpOpenMode.Import)
+                    : PdfSharpReader.Open(stream, PdfSharpOpenMode.Import);
                 return doc.PageCount;
             }
         }
@@ -138,10 +144,14 @@ namespace pdfMerge.Services
 
             token.ThrowIfCancellationRequested();
 
+            string? pwd = PdfSecurityService.GetPassword(fullPath);
+
             try
             {
                 StorageFile file = await StorageFile.GetFileFromPathAsync(fullPath);
-                var pdfDoc = await WinPdfDocument.LoadFromFileAsync(file);
+                var pdfDoc = !string.IsNullOrEmpty(pwd)
+                    ? await WinPdfDocument.LoadFromFileAsync(file, pwd)
+                    : await WinPdfDocument.LoadFromFileAsync(file);
 
                 if (pageIndex < 0 || pageIndex >= pdfDoc.PageCount)
                     return null;
@@ -227,8 +237,11 @@ namespace pdfMerge.Services
                 {
                     if (File.Exists(filePath))
                     {
+                        string? pwd = PdfSecurityService.GetPassword(filePath);
                         using var stream = File.OpenRead(filePath);
-                        using var doc = PdfSharpReader.Open(stream, PdfSharpOpenMode.Import);
+                        using var doc = !string.IsNullOrEmpty(pwd)
+                            ? PdfSharpReader.Open(stream, pwd, PdfSharpOpenMode.Import)
+                            : PdfSharpReader.Open(stream, PdfSharpOpenMode.Import);
                         if (doc.Outlines != null && doc.Outlines.Count > 0)
                         {
                             return true;
@@ -299,7 +312,10 @@ namespace pdfMerge.Services
                             // Process PDF page
                             if (!sourceDocsCache.TryGetValue(fullSourcePath, out var sourceDoc))
                             {
-                                sourceDoc = PdfSharpReader.Open(fullSourcePath, PdfSharpOpenMode.Import);
+                                string? pwd = PdfSecurityService.GetPassword(fullSourcePath);
+                                sourceDoc = !string.IsNullOrEmpty(pwd)
+                                    ? PdfSharpReader.Open(fullSourcePath, pwd, PdfSharpOpenMode.Import)
+                                    : PdfSharpReader.Open(fullSourcePath, PdfSharpOpenMode.Import);
                                 sourceDocsCache[fullSourcePath] = sourceDoc;
                             }
 

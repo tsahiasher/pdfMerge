@@ -54,8 +54,11 @@ namespace pdfMerge.Services
             {
                 try
                 {
+                    string? pwd = PdfSecurityService.GetPassword(fullPath);
                     using var stream = File.OpenRead(fullPath);
-                    using var doc = PdfReader.Open(stream, PdfDocumentOpenMode.Import);
+                    using var doc = !string.IsNullOrEmpty(pwd)
+                        ? PdfReader.Open(stream, pwd, PdfDocumentOpenMode.Import)
+                        : PdfReader.Open(stream, PdfDocumentOpenMode.Import);
 
                     if (pageIndex < 0 || pageIndex >= doc.PageCount) return;
 
@@ -241,7 +244,10 @@ namespace pdfMerge.Services
             {
                 try
                 {
-                    using var pigDoc = UglyToad.PdfPig.PdfDocument.Open(fullPath);
+                    string? pwd = PdfSecurityService.GetPassword(fullPath);
+                    using var pigDoc = !string.IsNullOrEmpty(pwd)
+                        ? UglyToad.PdfPig.PdfDocument.Open(fullPath, new UglyToad.PdfPig.ParsingOptions { Password = pwd })
+                        : UglyToad.PdfPig.PdfDocument.Open(fullPath);
                     if (pageIndex < 0 || pageIndex >= pigDoc.NumberOfPages) return;
 
                     var pigPage = pigDoc.GetPage(pageIndex + 1);
